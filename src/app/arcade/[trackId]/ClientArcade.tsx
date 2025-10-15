@@ -107,15 +107,16 @@ export function ClientArcade({ trackId, src, title }: { trackId: string; src: st
         return () => removeEventListener('keydown', onKey)
     }, [])
 
+    const overallPct = durationMs > 0 ? Math.max(0, Math.min(100, (currentMs / durationMs) * 100)) : 0
+
     return (
         <div className="space-y-6">
-            {/* Waveform / player block */}
             <div className="space-y-3">
                 <div className="rounded bg-accent/30 p-4 text-center">
                     <AudioPlayer
                         currentMs={currentMs}
                         durationMs={durationMs}
-                        onSeek={(ms) => { const el = mainRef.current; if (el) el.currentTime = Math.max(0, Math.min((durationMs / 1000) || 0, ms / 1000)) }}
+                        onSeek={(ms) => { const el = mainRef.current; if (!el) return; el.currentTime = Math.max(0, Math.min((durationMs / 1000) || 0, ms / 1000)) }}
                         onSwipeLeft={() => submitVote(-1)}
                         onSwipeRight={() => submitVote(1)}
                         isPlaying={isPlaying}
