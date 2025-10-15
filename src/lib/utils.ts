@@ -21,3 +21,40 @@ export function formatRelativeTime(input: string | number | Date | undefined): s
   const wk = Math.floor(day / 7)
   return `${wk} week${wk === 1 ? '' : 's'} ago`
 }
+
+export function buildUniformSections(durationMs: number, chunkMs = 10_000) {
+  const out: { start_ms: number; end_ms: number }[] = []
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return out
+  for (let start = 0; start < durationMs; start += chunkMs) {
+    const end = Math.min(durationMs, start + chunkMs)
+    out.push({ start_ms: start, end_ms: end })
+  }
+  return out
+}
+
+export function curvesFromSwipes(
+  sections: { id?: string; start_ms: number; end_ms: number }[],
+  swipes: Record<string, -1 | 0 | 1>,
+  trackMs: number,
+) {
+  const bins = Math.ceil(trackMs / 1000)
+  const V = new Array(bins).fill(0)
+  const A = new Array(bins).fill(0)
+  const K = (dt: number, sigma = 2500) => Math.exp(-(dt * dt) / (2 * sigma * sigma))
+  for (const s of sections) {
+    const key = s.id ?? `${s.start_ms}-${s.end_ms}`
+    const swipe = swipes[key] ?? 0
+    if (swipe === 0) continue
+    const tau = (s.start_ms + s.end_ms) / 2
+    const b0 = Math.floor(s.start_ms / 1000)
+    const b1 = Math.floor(s.end_ms / 1000)
+    for (let b = b0; b <= b1; b++) {
+      const t = b * 1000
+      const k = K(t - tau)
+      V[b] += swipe * k
+      A[b] += Math.abs(swipe) * k
+    }
+  }
+  const clamp = (x: number, min: number, max: number) => Math.max(min, Math.min(max, x))
+  return { V: V.map((v) => clamp(v, -1, 1)), A: A.map((a) => clamp(a, 0, 1)) }
+}

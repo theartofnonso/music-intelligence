@@ -6,7 +6,7 @@ import { ExternalLink, Check, Copy } from 'lucide-react'
 
 export function TrackRowActions({ trackId }: { trackId: string }) {
 	const [copied, setCopied] = useState(false)
-	const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/test/${trackId}` : `/test/${trackId}`
+    const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/arcade/${trackId}` : `/arcade/${trackId}`
 
 	async function copyLink() {
 		try {
@@ -17,8 +17,8 @@ export function TrackRowActions({ trackId }: { trackId: string }) {
 	}
 
 	return (
-		<div className="flex items-center gap-1.5">
-			<a href={`/test/${trackId}`} target="_blank" rel="noopener noreferrer">
+        <div className="flex items-center gap-1.5">
+            <a href={`/arcade/${trackId}`} target="_blank" rel="noopener noreferrer">
 				<Button variant="outline" size="icon-sm" aria-label="Preview">
 					<ExternalLink className="h-4 w-4" />
 				</Button>
