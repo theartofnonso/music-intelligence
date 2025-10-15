@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { ExternalLink, Check, Copy } from 'lucide-react'
 
 export function TrackRowActions({ trackId }: { trackId: string }) {
 	const [copied, setCopied] = useState(false)
@@ -16,11 +17,15 @@ export function TrackRowActions({ trackId }: { trackId: string }) {
 	}
 
 	return (
-		<div className="flex items-center gap-2">
+		<div className="flex items-center gap-1.5">
 			<a href={`/test/${trackId}`} target="_blank" rel="noopener noreferrer">
-				<Button variant="secondary" size="sm">Preview</Button>
+				<Button variant="outline" size="icon-sm" aria-label="Preview">
+					<ExternalLink className="h-4 w-4" />
+				</Button>
 			</a>
-			<Button variant="outline" size="sm" onClick={copyLink}>{copied ? 'Copied' : 'Copy link'}</Button>
+			<Button variant="outline" size="icon-sm" onClick={copyLink} aria-label={copied ? 'Copied' : 'Copy link'}>
+				{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+			</Button>
 		</div>
 	)
 }

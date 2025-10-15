@@ -3,11 +3,12 @@
 import { useCallback, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 // no card components
-import { UploadCloud } from 'lucide-react'
+import { UploadCloud, Music, Upload, X } from 'lucide-react'
 import { supabaseBrowser } from '@/lib/supabaseClient'
+import { formatRelativeTime } from '@/lib/utils'
 import { TrackRowActions } from '@/components/dashboard/TrackRowActions'
 
-export type Track = { track_id: string; title: string | null }
+export type Track = { track_id: string; title: string | null; created_at?: string }
 
 type Props = { initialTracks: Track[] }
 
@@ -95,8 +96,14 @@ export function TracksClient({ initialTracks }: Props) {
 						{file && <p className="mt-2 text-xs">Selected: {file.name}</p>}
 					</div>
 					<div className="mt-4 flex items-center justify-end gap-2">
-						<Button variant="secondary" type="button" onClick={() => { setFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}>Cancel</Button>
-						<Button disabled={!file || busy} onClick={upload}>Upload</Button>
+						<Button variant="secondary" type="button" onClick={() => { setFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}>
+							<X className="h-4 w-4" />
+							Cancel
+						</Button>
+						<Button disabled={!file || busy} onClick={upload}>
+							<Upload className="h-4 w-4" />
+							Upload
+						</Button>
 					</div>
 				</div>
 				{message && <p className="mt-2 text-xs text-muted-foreground">{message}</p>}
@@ -104,12 +111,23 @@ export function TracksClient({ initialTracks }: Props) {
 			<section className="space-y-2">
 				<h2 className="text-sm font-semibold">Tracks</h2>
 				<ul className="text-sm space-y-1">
-					{tracks.map((t) => (
-						<li key={t.track_id} className="flex items-center justify-between gap-4">
-							<span className="truncate">{t.title ?? 'Untitled'}</span>
-							<TrackRowActions trackId={t.track_id} />
-						</li>
-					))}
+					{tracks.map((t) => {
+						const rel = formatRelativeTime(t.created_at)
+						return (
+							<li key={t.track_id} className="flex items-center justify-between gap-4">
+								<div className="flex items-center gap-3 min-w-0">
+									<div className="grid size-10 place-items-center rounded-md bg-foreground/10">
+										<Music className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+									</div>
+									<div className="min-w-0">
+										<p className="font-semibold truncate">{t.title ?? 'Untitled'}</p>
+										{rel && <p className="text-xs text-muted-foreground">{rel}</p>}
+									</div>
+								</div>
+								<TrackRowActions trackId={t.track_id} />
+							</li>
+						)
+					})}
 				</ul>
 			</section>
 		</div>

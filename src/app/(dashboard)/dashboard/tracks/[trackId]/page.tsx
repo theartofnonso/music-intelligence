@@ -11,8 +11,9 @@ async function fetchTrack(trackId: string) {
 	return data
 }
 
-export default async function TrackDetail({ params }: { params: { trackId: string } }) {
-	const track = await fetchTrack(params.trackId)
+export default async function TrackDetail({ params }: { params: Promise<{ trackId: string }> }) {
+	const { trackId } = await params
+	const track = await fetchTrack(trackId)
 	if (!track) return <div className="p-6">Track not found.</div>
 	const [aggs, fp] = await Promise.all([getAggregates(track.track_id), getFingerprint(track.track_id)])
 	const hasData = (aggs.attention.length + aggs.skip.length + aggs.replay.length + aggs.sentiment.length) > 0
