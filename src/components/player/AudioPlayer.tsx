@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { Pause, Play, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Pause, Play, ThumbsUp, ThumbsDown, RotateCcw, SkipForward } from "lucide-react";
 
 export default function AudioPlayerImproved({
   src,
@@ -40,6 +40,16 @@ export default function AudioPlayerImproved({
     const m = Math.floor(total / 60);
     const s = total % 60;
     return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+  const handleReplaySection = () => {
+    if (!onSeek || durationMs <= 0) return;
+    const startMs = Math.max(0, currentIndex * CHUNK_MS);
+    onSeek(startMs);
+  };
+  const handleSkipSection = () => {
+    if (!onSeek || durationMs <= 0) return;
+    const endMs = Math.min(durationMs, (currentIndex + 1) * CHUNK_MS);
+    onSeek(endMs);
   };
 
   // Wavesurfer waveform
@@ -94,7 +104,7 @@ export default function AudioPlayerImproved({
       </div>
 
       {/* Segmented chunk rail (10s) with playhead and click-to-seek */}
-      <div className="mt-4 space-y-2">
+      <div className="mt-4 space-y-4">
         <div className="flex items-center justify-between text-xs text-zinc-700">
           <span className="font-mono">Section {segmentsCount ? Math.min(currentIndex + 1, segmentsCount) : 0} of {segmentsCount}</span>
           <span>{formatMs(currentMs)}</span>
@@ -103,6 +113,13 @@ export default function AudioPlayerImproved({
 
       {/* Transport controls (bottom center) */}
       <div className="mt-6 flex items-center justify-center gap-6">
+      <button
+          className="rounded-full p-3 text-zinc-800 transition hover:bg-zinc-200/70 active:scale-95 cursor-pointer"
+          aria-label="Replay section"
+          onClick={handleReplaySection}
+        >
+          <RotateCcw className="h-7 w-7" />
+        </button>
         <button
           className="rounded-full p-3 text-zinc-800 transition hover:bg-zinc-200/70 active:scale-95 cursor-pointer"
           aria-label="Previous"
@@ -125,6 +142,13 @@ export default function AudioPlayerImproved({
           onClick={onSwipeRight}
         >
           <ThumbsUp className="h-7 w-7" />
+        </button>
+        <button
+          className="rounded-full p-3 text-zinc-800 transition hover:bg-zinc-200/70 active:scale-95 cursor-pointer"
+          aria-label="Skip section"
+          onClick={handleSkipSection}
+        >
+          <SkipForward className="h-7 w-7" />
         </button>
       </div>
     </div>

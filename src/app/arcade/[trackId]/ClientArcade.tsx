@@ -34,6 +34,11 @@ export function ClientArcade({ trackId, src, title }: { trackId: string; src: st
     useEffect(() => attachLifecycleFlush(), [])
 
     const sections = useMemo(() => buildUniformSections(durationMs, CHUNK_MS), [durationMs])
+    const getSectionIndex = (ms: number) => {
+        if (!durationMs || durationMs <= 0) return 0
+        const idx = Math.floor(ms / CHUNK_MS)
+        return Math.max(0, Math.min(idx, Math.max(0, sections.length - 1)))
+    }
 
     useEffect(() => {
         const el = mainRef.current
@@ -117,7 +122,35 @@ export function ClientArcade({ trackId, src, title }: { trackId: string; src: st
                         src={src}
                         currentMs={currentMs}
                         durationMs={durationMs}
-                        onSeek={(ms) => { const el = mainRef.current; if (!el) return; el.currentTime = Math.max(0, Math.min((durationMs / 1000) || 0, ms / 1000)) }}
+                        onSeek={(ms) => {
+                            const el = mainRef.current; if (!el) return;
+                            const fromMs = currentMs
+                            const toMs = Math.max(0, Math.min(durationMs || 0, ms))
+                            const fromSectionIndex = getSectionIndex(fromMs)
+                            const toSectionIndex = getSectionIndex(toMs)
+                            if (toMs > fromMs) {
+                                // Skip forward: capture latency position
+                                enqueue({
+                                    sessionId,
+                                    trackId,
+                                    type: 'arcade_skip',
+                                    positionMs: fromMs,
+                                    clientTs: Date.now(),
+                                    payload: { fromMs, toMs, deltaMs: toMs - fromMs, fromSectionIndex, toSectionIndex },
+                                } as any)
+                            } else if (toMs < fromMs) {
+                                // Replay/backward seek
+                                enqueue({
+                                    sessionId,
+                                    trackId,
+                                    type: 'arcade_replay',
+                                    positionMs: toMs,
+                                    clientTs: Date.now(),
+                                    payload: { fromMs, toMs, deltaMs: toMs - fromMs, fromSectionIndex, toSectionIndex },
+                                } as any)
+                            }
+                            el.currentTime = Math.max(0, Math.min((durationMs / 1000) || 0, toMs / 1000))
+                        }}
                         onSwipeLeft={() => submitVote(-1)}
                         onSwipeRight={() => submitVote(1)}
                         isPlaying={isPlaying}
