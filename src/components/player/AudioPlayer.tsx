@@ -92,29 +92,11 @@ export default function AudioPlayerImproved({
       <div className="relative w-full select-none">
         <div ref={waveRef} className="h-24 w-full" />
       </div>
+
       {/* Segmented chunk rail (10s) with playhead and click-to-seek */}
-      <div className="mt-6 space-y-2">
-        <div
-          ref={barRef}
-          onClick={handleSeekClick}
-          className="relative w-full select-none cursor-pointer"
-          role={onSeek ? "slider" : undefined}
-          aria-label="Seek by segment"
-        >
-          <div className="flex w-full gap-[2px]">
-            {Array.from({ length: segmentsCount }).map((_, i) => {
-              const isCurrent = i === currentIndex;
-              return (
-                <div key={`seg-${i}`} className={`h-2 flex-1 bg-zinc-300 ${isCurrent ? 'ring-1 ring-foreground/60' : ''}`} />
-              );
-            })}
-          </div>
-          <div className="pointer-events-none absolute left-0 top-[-3px] h-[14px] w-full">
-            <div className="absolute top-0 h-full w-[2px] bg-foreground" style={{ left: `${pct}%` }} />
-          </div>
-        </div>
+      <div className="mt-4 space-y-2">
         <div className="flex items-center justify-between text-xs text-zinc-700">
-          <span>Chunk {segmentsCount ? Math.min(currentIndex + 1, segmentsCount) : 0} / {segmentsCount}</span>
+          <span className="font-mono">Section {segmentsCount ? Math.min(currentIndex + 1, segmentsCount) : 0} of {segmentsCount}</span>
           <span>{formatMs(currentMs)}</span>
         </div>
       </div>
