@@ -1,14 +1,20 @@
 import { ClientTest } from './ClientTest'
+import { headers } from 'next/headers'
 
 async function fetchTrack(trackId: string) {
-	const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? ''}/api/tracks/${trackId}`, { cache: 'no-store' })
+    const h = await headers()
+    const host = h.get('x-forwarded-host') ?? h.get('host') ?? ''
+    const protocol = (h.get('x-forwarded-proto') ?? 'http') + '://'
+    const base = host ? `${protocol}${host}` : (process.env.NEXT_PUBLIC_BASE_URL ?? '')
+    const res = await fetch(`${base}/api/tracks/${trackId}`, { cache: 'no-store' })
 	if (!res.ok) return null
 	const json = await res.json()
 	return json.track as { track_id: string; title: string | null; storage_path: string | null }
 }
 
-export default async function Page({ params }: { params: { trackId: string } }) {
-	const track = await fetchTrack(params.trackId)
+export default async function Page({ params }: { params: Promise<{ trackId: string }> }) {
+    const { trackId } = await params
+    const track = await fetchTrack(trackId)
 	if (!track?.storage_path) {
 		return <div className="p-6">Track not found or missing URL.</div>
 	}
