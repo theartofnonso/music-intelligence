@@ -110,10 +110,11 @@ export function ClientArcade({ trackId, src, title }: { trackId: string; src: st
     const overallPct = durationMs > 0 ? Math.max(0, Math.min(100, (currentMs / durationMs) * 100)) : 0
 
     return (
-        <div className="space-y-6">
-            <div className="space-y-3">
+        <div className="min-h-screen w-full flex items-center justify-center">
+            <div className="space-y-3 w-full max-w-[560px] px-4">
                 <div className="rounded bg-accent/30 p-4 text-center">
                     <AudioPlayer
+                        src={src}
                         currentMs={currentMs}
                         durationMs={durationMs}
                         onSeek={(ms) => { const el = mainRef.current; if (!el) return; el.currentTime = Math.max(0, Math.min((durationMs / 1000) || 0, ms / 1000)) }}

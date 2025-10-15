@@ -4,6 +4,7 @@ import React from "react"
 import { Pause, Play, ThumbsUp, ThumbsDown } from "lucide-react";
 
 export default function AudioPlayerImproved({
+  src,
   currentMs = 0,
   durationMs = 0,
   isPlaying = false,
@@ -12,6 +13,7 @@ export default function AudioPlayerImproved({
   onSwipeRight,
   onSeek,
 }: {
+  src?: string;
   currentMs?: number;
   durationMs?: number;
   isPlaying?: boolean;
@@ -33,20 +35,62 @@ export default function AudioPlayerImproved({
     const ratio = x / rect.width;
     onSeek(Math.round(durationMs * ratio));
   };
+  const formatMs = (ms: number) => {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  // Wavesurfer waveform
+  const waveRef = React.useRef<HTMLDivElement | null>(null);
+  const wsRef = React.useRef<any>(null);
+  React.useEffect(() => {
+    let ws: any;
+    let cancelled = false;
+    async function setup() {
+      if (!waveRef.current || !src) return;
+      const WaveSurfer = (await import('wavesurfer.js')).default;
+      if (cancelled) return;
+      ws = WaveSurfer.create({
+        container: waveRef.current,
+        waveColor: '#d4d4d8', // zinc-300
+        progressColor: '#000000',
+        cursorColor: '#000000',
+        barWidth: 2,
+        barGap: 10,
+        height: 84,
+        responsive: true,
+        interact: true,
+      });
+      wsRef.current = ws;
+      ws.load(src);
+      ws.on('seek', (progress: number) => {
+        if (!onSeek || !durationMs) return;
+        onSeek(Math.round(durationMs * progress));
+      });
+    }
+    setup();
+    return () => {
+      cancelled = true;
+      try { ws?.destroy(); } catch {}
+      wsRef.current = null;
+    };
+  }, [src]);
+
+  // Sync external playback position to waveform cursor
+  React.useEffect(() => {
+    const ws = wsRef.current;
+    if (!ws || !durationMs || durationMs <= 0) return;
+    const ratio = clamp(currentMs / durationMs, 0, 1);
+    try { ws.seekTo(ratio); } catch {}
+  }, [currentMs, durationMs]);
 
   return (
-    <div className="w-full max-w-[480px] mx-auto rounded-2xl bg-zinc-100 p-6 shadow-sm ring-1 ring-zinc-200">
-      {/* Record Graphic */}
-      <div className="relative aspect-square w-full select-none">
-        {/* Disc */}
-        <div className="absolute inset-0 rounded-full bg-indigo-600/90" />
-        {/* Center hole */}
-        <div className="absolute left-1/2 top-1/2 h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full bg-zinc-100 shadow-inner" />
-        {/* Notches */}
-        <div className="absolute left-1/2 top-[26%] h-8 w-2 -translate-x-1/2 rotate-25 rounded-sm bg-zinc-100/90" />
-        <div className="absolute left-1/2 bottom-[26%] h-8 w-2 -translate-x-1/2 -rotate-25 rounded-sm bg-zinc-100/90" />
-        {/* Inner ring */}
-        <div className="absolute inset-5 rounded-full ring-1 ring-indigo-700/40" />
+    <div className="w-full max-w-[480px] mx-auto rounded-2xl p-6">
+      {/* Waveform (Wavesurfer.js) */}
+      <div className="relative w-full select-none">
+        <div ref={waveRef} className="h-24 w-full" />
       </div>
       {/* Segmented chunk rail (10s) with playhead and click-to-seek */}
       <div className="mt-6 space-y-2">
@@ -71,7 +115,7 @@ export default function AudioPlayerImproved({
         </div>
         <div className="flex items-center justify-between text-xs text-zinc-700">
           <span>Chunk {segmentsCount ? Math.min(currentIndex + 1, segmentsCount) : 0} / {segmentsCount}</span>
-          <span>{CHUNK_MS / 1000}s segments</span>
+          <span>{formatMs(currentMs)}</span>
         </div>
       </div>
 
