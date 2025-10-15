@@ -1,45 +1,25 @@
 "use client"
 
 import React from "react"
-import { Star, SkipBack, Pause, Play, SkipForward, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Pause, Play, ThumbsUp, ThumbsDown } from "lucide-react";
 
 /**
  * AudioPlayerImproved — redesigned to match the reference mock.
  * Tailwind + lucide-react only. Accessible, responsive, and prop-driven.
- *
- * Props mirror your original component (plus a few optional display fields):
- * - title?: string
- * - artist?: string
- * - credits?: string
- * - currentMs?: number
- * - durationMs?: number
- * - isPlaying?: boolean
- * - favorite?: boolean
- * - onTogglePlay?: () => void
- * - onPrev?: () => void
- * - onNext?: () => void
- * - onToggleFavorite?: () => void
- * - onSeek?: (ms: number) => void
+ 
  */
 export default function AudioPlayerImproved({
-  title = "So What",
   currentMs = 0,
   durationMs = 0,
   isPlaying = false,
-  favorite = false,
   onTogglePlay,
   onSwipeLeft,
   onSwipeRight,
-  onToggleFavorite,
   onSeek,
 }: {
-  title?: string;
-  artist?: string;
-  credits?: string;
   currentMs?: number;
   durationMs?: number;
   isPlaying?: boolean;
-  favorite?: boolean;
   onTogglePlay?: () => void;
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
