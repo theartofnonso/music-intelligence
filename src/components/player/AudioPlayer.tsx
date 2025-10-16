@@ -38,11 +38,13 @@ export default function AudioPlayerImproved({
   };
   const handleReplaySection = () => {
     if (!onSeek || durationMs <= 0) return;
+    flashPressed('replay');
     const startMs = Math.max(0, currentIndex * CHUNK_MS);
     onSeek(startMs);
   };
   const handleSkipSection = () => {
     if (!onSeek || durationMs <= 0) return;
+    flashPressed('skip');
     const endMs = Math.min(durationMs, (currentIndex + 1) * CHUNK_MS);
     onSeek(endMs);
   };
@@ -91,6 +93,13 @@ export default function AudioPlayerImproved({
     try { ws.seekTo(ratio); } catch { }
   }, [currentMs, durationMs]);
 
+  // Transient pressed state for visual feedback
+  const [pressed, setPressed] = React.useState<{ replay: boolean; dislike: boolean; like: boolean; skip: boolean }>({ replay: false, dislike: false, like: false, skip: false });
+  const flashPressed = (key: keyof typeof pressed, ms = 180) => {
+    setPressed((p) => ({ ...p, [key]: true }));
+    window.setTimeout(() => setPressed((p) => ({ ...p, [key]: false })), ms);
+  };
+
   return (
     <div className="w-full max-w-[480px] mx-auto rounded-2xl p-6">
       {/* Waveform (Wavesurfer.js) */}
@@ -113,7 +122,8 @@ export default function AudioPlayerImproved({
           size="icon"
           aria-label="Replay section"
           onClick={handleReplaySection}
-          className="rounded-full"
+          aria-pressed={pressed.replay}
+          className={`rounded-full active:scale-95 ${pressed.replay ? 'bg-red-500 text-white' : ''}`}
         >
           <RotateCcw className="h-5 w-5" />
         </Button>
@@ -121,8 +131,9 @@ export default function AudioPlayerImproved({
           variant="outline"
           size="icon"
           aria-label="Dislike"
-          onClick={onDislike}
-          className="rounded-full"
+          onClick={() => { flashPressed('dislike'); onDislike?.(); }}
+          aria-pressed={pressed.dislike}
+          className={`rounded-full active:scale-95 ${pressed.dislike ? 'bg-red-500 text-white' : ''}`}
         >
           <ThumbsDown className="h-5 w-5" />
         </Button>
@@ -132,7 +143,7 @@ export default function AudioPlayerImproved({
           size="icon-lg"
           aria-label={isPlaying ? "Pause" : "Play"}
           onClick={onTogglePlay}
-          className="rounded-full"
+          className="rounded-full active:scale-95"
         >
           {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
         </Button>
@@ -141,8 +152,9 @@ export default function AudioPlayerImproved({
           variant="outline"
           size="icon"
           aria-label="Like"
-          onClick={onLike}
-          className="rounded-full"
+          onClick={() => { flashPressed('like'); onLike?.(); }}
+          aria-pressed={pressed.like}
+          className={`rounded-full active:scale-95 ${pressed.like ? 'bg-emerald-500 text-white' : ''}`}
         >
           <ThumbsUp className="h-5 w-5" />
         </Button>
@@ -151,7 +163,8 @@ export default function AudioPlayerImproved({
           size="icon"
           aria-label="Skip section"
           onClick={handleSkipSection}
-          className="rounded-full"
+          aria-pressed={pressed.skip}
+          className={`rounded-full active:scale-95 ${pressed.skip ? 'bg-emerald-500 text-white' : ''}`}
         >
           <SkipForward className="h-5 w-5" />
         </Button>
