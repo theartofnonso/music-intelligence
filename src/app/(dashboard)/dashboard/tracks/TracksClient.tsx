@@ -7,6 +7,7 @@ import { UploadCloud, Music, Upload, X } from 'lucide-react'
 import { supabaseBrowser } from '@/lib/supabaseClient'
 import { formatRelativeTime } from '@/lib/utils'
 import { TrackRowActions } from '@/components/dashboard/TrackRowActions'
+import { Progress } from '@/components/ui/progress'
 
 export type Track = { track_id: string; title: string | null; created_at?: string }
 
@@ -18,6 +19,8 @@ export function TracksClient({ initialTracks }: Props) {
 	const [dragActive, setDragActive] = useState(false)
 	const [busy, setBusy] = useState(false)
 	const [message, setMessage] = useState('')
+	const [uploadProgress, setUploadProgress] = useState<number | null>(null)
+	const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 	const fileInputRef = useRef<HTMLInputElement | null>(null)
 
 	const onChooseClick = () => fileInputRef.current?.click()
@@ -42,6 +45,15 @@ export function TracksClient({ initialTracks }: Props) {
 		if (!file) return
 		setBusy(true)
 		setMessage('')
+		setUploadProgress(1)
+		if (progressTimerRef.current) clearInterval(progressTimerRef.current)
+		progressTimerRef.current = setInterval(() => {
+			setUploadProgress((p) => {
+				if (p === null) return p
+				// creep up to 90% while uploading; complete on success
+				return Math.min(90, (p || 1) + 2)
+			})
+		}, 200)
 		const reqId = crypto.randomUUID()
 		console.log(`[upload][${reqId}] start`, { name: file.name, size: file.size, type: file.type })
 		try {
@@ -58,9 +70,10 @@ export function TracksClient({ initialTracks }: Props) {
 			})
 			console.log(`[upload][${reqId}] POST /api/tracks/create →`, res.status)
 			if (!res.ok) throw new Error('Failed to create track')
-            const json = (await res.json()) as { track_id: string; title: string | null; artist?: string | null; storage_path: string; created_at?: string }
-            console.log(`[upload][${reqId}] success`, { track_id: json.track_id })
-            setTracks((prev) => [{ track_id: json.track_id, title: json.title ?? file.name, created_at: json.created_at }, ...prev])
+			const json = (await res.json()) as { track_id: string; title: string | null; artist?: string | null; storage_path: string; created_at?: string }
+			console.log(`[upload][${reqId}] success`, { track_id: json.track_id })
+			setUploadProgress(100)
+			setTracks((prev) => [{ track_id: json.track_id, title: json.title ?? file.name, created_at: json.created_at }, ...prev])
 			setFile(null)
 			if (fileInputRef.current) fileInputRef.current.value = ''
 			setMessage('Uploaded')
@@ -69,11 +82,13 @@ export function TracksClient({ initialTracks }: Props) {
 			setMessage(e instanceof Error ? e.message : 'Upload failed')
 		} finally {
 			setBusy(false)
+			if (progressTimerRef.current) { clearInterval(progressTimerRef.current); progressTimerRef.current = null }
+			setTimeout(() => setUploadProgress(null), 400)
 		}
 	}, [file])
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-6 relative">
 			<section>
 				<div>
 					<div
@@ -116,26 +131,37 @@ export function TracksClient({ initialTracks }: Props) {
 					</div>
 				) : (
 				<ul className="text-sm space-y-1">
-					{tracks.map((t) => {
-						const rel = formatRelativeTime(t.created_at)
-                        return (
-                            <li key={t.track_id} className="flex items-center justify-between gap-4 rounded-md px-2 py-2 transition-colors hover:bg-accent/40">
-                                <a href={`/dashboard/tracks/${t.track_id}`} className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer">
-									<div className="grid size-10 place-items-center rounded-md bg-foreground/10">
-										<Music className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-									</div>
-									<div className="min-w-0">
-										<p className="font-semibold truncate">{t.title ?? 'Untitled'}</p>
-										{rel && <p className="text-xs text-muted-foreground">{rel}</p>}
-									</div>
-                                </a>
-								<TrackRowActions trackId={t.track_id} />
-							</li>
-						)
-					})}
+						{tracks.map((t) => {
+							const rel = formatRelativeTime(t.created_at)
+							return (
+								<li key={t.track_id} className="flex items-center justify-between gap-4 rounded-md px-2 py-2 transition-colors hover:bg-accent/40">
+									<a href={`/dashboard/tracks/${t.track_id}`} className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer">
+										<div className="grid size-10 place-items-center rounded-md bg-foreground/10">
+											<Music className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+										</div>
+										<div className="min-w-0">
+											<p className="font-semibold truncate">{t.title ?? 'Untitled'}</p>
+											{rel && <p className="text-xs text-muted-foreground">{rel}</p>}
+										</div>
+									</a>
+									<TrackRowActions trackId={t.track_id} />
+								</li>
+							)
+						})}
 					</ul>
 				)}
 			</section>
+			{busy && (
+				<div className="fixed inset-0 z-50 grid place-items-center bg-background/60 backdrop-blur-sm">
+					<div className="w-full max-w-sm rounded-md border bg-background p-4 text-center">
+						<p className="text-sm font-medium">Uploading…</p>
+						<div className="mt-3">
+							<Progress value={uploadProgress ?? undefined} />
+							<p className="mt-1 text-[10px] text-muted-foreground">{Math.round(uploadProgress ?? 0)}%</p>
+						</div>
+					</div>
+				</div>
+			)}
 		</div>
 	)
 }
