@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { cn } from '@/lib/utils'
+import { Slot } from '@radix-ui/react-slot'
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
 	return <div className="flex min-h-screen w-full bg-background text-foreground">{children}</div>
@@ -45,9 +46,9 @@ export function SidebarMenuItem({ children, className }: { children: React.React
 
 export function SidebarMenuButton({ children, className, isActive, asChild }: { children: React.ReactNode; className?: string; isActive?: boolean; asChild?: boolean }) {
 	return (
-		<a className={cn('block rounded-none px-3 py-2 text-sm hover:bg-sidebar-accent', isActive && 'bg-sidebar-accent', className)}>
-			{children}
-		</a>
+        <Slot className={cn('block rounded-none px-3 py-2 text-sm hover:bg-sidebar-accent', isActive && 'bg-sidebar-accent', className)}>
+            {children}
+        </Slot>
 	)
 }
 

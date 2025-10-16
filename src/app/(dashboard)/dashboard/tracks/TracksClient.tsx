@@ -92,7 +92,7 @@ export function TracksClient({ initialTracks }: Props) {
 			<section>
 				<div>
 					<div
-						className={`border border-dashed rounded-xl p-10 text-center transition-colors ${dragActive ? 'bg-accent/80' : 'bg-accent/60'}`}
+						className={`border border-dashed rounded-xl p-6 sm:p-10 text-center transition-colors ${dragActive ? 'bg-accent/80' : 'bg-accent/60'}`}
 						onDragOver={onDragOver}
 						onDragLeave={onDragLeave}
 						onDrop={onDrop}
@@ -110,7 +110,7 @@ export function TracksClient({ initialTracks }: Props) {
 						<input id="file-input" ref={fileInputRef} type="file" accept="audio/*" className="hidden" onChange={onPick} />
 						{file && <p className="mt-2 text-xs">Selected: {file.name}</p>}
 					</div>
-					<div className="mt-4 flex items-center justify-end gap-2">
+					<div className="mt-4 flex flex-wrap items-center justify-between gap-2 sm:justify-end">
 						{file && <Button variant="secondary" type="button" onClick={() => { setFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}>
 							<X className="h-4 w-4" />
 							Cancel
@@ -131,11 +131,11 @@ export function TracksClient({ initialTracks }: Props) {
 					</div>
 				) : (
 				<ul className="text-sm space-y-1">
-						{tracks.map((t) => {
+								{tracks.map((t) => {
 							const rel = formatRelativeTime(t.created_at)
 							return (
-                                <li key={t.id} className="flex items-center justify-between gap-4 rounded-md px-2 py-2 transition-colors hover:bg-accent/40">
-                                    <a href={`/dashboard/tracks/${t.id}`} className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer">
+									<li key={t.id} className="flex flex-col gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/40 sm:flex-row sm:items-center sm:justify-between">
+										<a href={`/dashboard/tracks/${t.id}`} className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
 										<div className="grid size-10 place-items-center rounded-md bg-foreground/10">
 											<Music className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
 										</div>
@@ -143,8 +143,10 @@ export function TracksClient({ initialTracks }: Props) {
 											<p className="font-semibold truncate">{t.title ?? 'Untitled'}</p>
 											{rel && <p className="text-xs text-muted-foreground">{rel}</p>}
 										</div>
-									</a>
-                                <TrackRowActions trackId={t.id} onDeleted={(id) => setTracks((prev) => prev.filter((x) => x.id !== id))} />
+										</a>
+										<div className="mt-1 sm:mt-0 sm:ml-auto">
+											<TrackRowActions trackId={t.id} onDeleted={(id) => setTracks((prev) => prev.filter((x) => x.id !== id))} />
+										</div>
 								</li>
 							)
 						})}

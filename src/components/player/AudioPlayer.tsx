@@ -27,8 +27,6 @@ export default function AudioPlayerImproved({
   const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 
   const CHUNK_MS = 10_000;
-  const segmentsCount = durationMs > 0 ? Math.ceil(durationMs / CHUNK_MS) : 0;
-  const currentIndex = segmentsCount > 0 ? Math.min(segmentsCount - 1, Math.floor(currentMs / CHUNK_MS)) : 0;
 
   const formatMs = (ms: number) => {
     const total = Math.max(0, Math.floor(ms / 1000));
@@ -39,14 +37,14 @@ export default function AudioPlayerImproved({
   const handleReplaySection = () => {
     if (!onSeek || durationMs <= 0) return;
     flashPressed('replay');
-    const startMs = Math.max(0, currentIndex * CHUNK_MS);
-    onSeek(startMs);
+    const toMs = Math.max(0, (currentMs || 0) - CHUNK_MS);
+    onSeek(toMs);
   };
   const handleSkipSection = () => {
     if (!onSeek || durationMs <= 0) return;
     flashPressed('skip');
-    const endMs = Math.min(durationMs, (currentIndex + 1) * CHUNK_MS);
-    onSeek(endMs);
+    const toMs = Math.min(durationMs, (currentMs || 0) + CHUNK_MS);
+    onSeek(toMs);
   };
 
   // Wavesurfer waveform
@@ -107,11 +105,11 @@ export default function AudioPlayerImproved({
         <div ref={waveRef} className="h-24 w-full" />
       </div>
 
-      {/* Segmented chunk rail (10s) with playhead and click-to-seek */}
-      <div className="mt-4 space-y-4">
+      {/* Time readout */}
+      <div className="mt-4">
         <div className="flex items-center justify-between text-xs text-zinc-700">
-          <span className="font-mono">Section {segmentsCount ? Math.min(currentIndex + 1, segmentsCount) : 0} of {segmentsCount}</span>
-          <span>{formatMs(currentMs)}</span>
+          <span className="font-mono">{formatMs(currentMs)}</span>
+          <span className="font-mono">{formatMs(durationMs)}</span>
         </div>
       </div>
 
@@ -120,7 +118,7 @@ export default function AudioPlayerImproved({
         <Button
           variant="outline"
           size="icon"
-          aria-label="Replay section"
+          aria-label="Replay 10 seconds"
           onClick={handleReplaySection}
           aria-pressed={pressed.replay}
           className={`rounded-full active:scale-95 ${pressed.replay ? 'bg-red-500 text-white' : ''}`}
@@ -161,7 +159,7 @@ export default function AudioPlayerImproved({
         <Button
           variant="outline"
           size="icon"
-          aria-label="Skip section"
+          aria-label="Skip forward 10 seconds"
           onClick={handleSkipSection}
           aria-pressed={pressed.skip}
           className={`rounded-full active:scale-95 ${pressed.skip ? 'bg-emerald-500 text-white' : ''}`}

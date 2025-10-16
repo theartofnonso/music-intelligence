@@ -64,10 +64,10 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
                 </Button>
             </div>
             {/* Hero */}
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-center sm:gap-4">
                 <div className="grid size-16 place-items-center rounded-lg bg-foreground/10" />
-                <div className="min-w-0">
-                    <h1 className="text-xl font-semibold truncate">{track?.title ?? 'Track'}</h1>
+                <div className="min-w-0 text-center sm:text-left">
+                    <h1 className="truncate text-xl font-semibold">{track?.title ?? 'Track'}</h1>
                     <p className="text-xs text-muted-foreground">Analysis overview</p>
                 </div>
             </div>

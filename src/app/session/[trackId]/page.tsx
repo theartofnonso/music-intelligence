@@ -16,7 +16,7 @@ export default async function SessionPage({ params }: { params: Promise<{ trackI
     const track = await fetchTrack(trackId)
     if (!track?.storage_path) return <div className="p-6">Track not found or missing URL.</div>
     return (
-        <div className="max-w-2xl mx-auto p-6 space-y-6">
+        <div className="mx-auto max-w-2xl space-y-6 px-3 py-4 sm:px-6 sm:py-6">
             <ClientSession trackId={track.id} src={track.storage_path} />
         </div>
     )
