@@ -5,6 +5,7 @@ import { curvesFromEvents, mapRawEventsToReviewEvents, buildUniformSections, typ
 import TrackCurvesChart from '@/components/charts/TrackCurvesChart'
 import ClientPlayerSection from './ClientPlayerSection'
 import ClientEventsBreakdown from './ClientEventsBreakdown'
+import SimpleWavePlayer from '@/components/player/SimpleWavePlayer'
 
 async function fetchTrack(trackId: string) {
 	const { data, error } = await supabaseServer
@@ -22,14 +23,7 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
 	if (!track) return <div className="p-6">Track not found.</div>
     const [aggs, fp] = await Promise.all([getAggregates(track.track_id), getFingerprint(track.track_id)])
     const hasData = (aggs.attention.length + aggs.skip.length + aggs.replay.length + aggs.sentiment.length) > 0
-    const dummySeconds = Array.from({ length: 60 }).map((_, i) => i)
-    const dummyRails = dummySeconds.map((s) => ({
-        second: s,
-        valence: Math.sin(s / 6) * 0.6,
-        arousal: Math.max(0, Math.cos(s / 8)),
-        skip: s % 11 === 0 ? 0.8 : 0,
-        replay: s % 17 === 0 ? 0.7 : 0,
-    }))
+    const zeroRails = Array.from({ length: 60 }).map((_, i) => ({ second: i, valence: 0, arousal: 0 }))
 
     // Attempt to compute curves client-side from raw events (fallback to existing aggregates if unavailable)
     let computed: { V: number[]; A: number[] } | null = null
@@ -64,7 +58,7 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
 
             {/* Player */}
             <section>
-                {track.storage_path && <ClientPlayerSection src={track.storage_path} trackId={track.track_id} />}
+                {track.storage_path && <SimpleWavePlayer src={track.storage_path} />}
             </section>
 
             {/* Event breakdown */}
@@ -80,7 +74,7 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
                         ? computed.V.map((v, i) => ({ second: i, valence: v, arousal: computed!.A[i] ?? 0 }))
                         : (hasData
                             ? fp.map((b:any) => ({ second: b.second, valence: b.sentiment ?? 0, arousal: b.attention ?? 0 }))
-                            : dummyRails.map((b:any) => ({ second: b.second, valence: b.valence, arousal: b.arousal, skip: b.skip, replay: b.replay }))
+                            : zeroRails
                           )
                     )}
                 />

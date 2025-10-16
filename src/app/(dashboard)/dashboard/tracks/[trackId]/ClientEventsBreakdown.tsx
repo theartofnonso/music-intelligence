@@ -19,16 +19,21 @@ export default function ClientEventsBreakdown({ trackId, src }: { trackId: strin
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
+    let alive = true
     setLoading(true)
-    const dummy: RawEvent[] = [
-      { type: 'arcade_reaction', positionMs: 5000,  payload: { sectionIndex: 0, event: 'LIKE',    weight: 1 } },
-      { type: 'arcade_reaction', positionMs: 20000, payload: { sectionIndex: 2, event: 'DISLIKE', weight: -1 } },
-      { type: 'arcade_skip',     positionMs: 30000, payload: { fromMs: 30000, toMs: 40000, deltaMs: 10000, fromSectionIndex: 3, toSectionIndex: 4, event: 'SKIP',   weight: -1 } },
-      { type: 'arcade_replay',   positionMs: 45000, payload: { fromMs: 45000, toMs: 35000, deltaMs: -10000, fromSectionIndex: 4, toSectionIndex: 3, event: 'REPLAY', weight: 1 } },
-      { type: 'arcade_reaction', positionMs: 60000, payload: { sectionIndex: 6, event: 'LIKE',    weight: 1 } },
-    ]
-    setEvents(dummy)
-    setLoading(false)
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/events/track/${trackId}`, { cache: 'no-store' })
+        if (!res.ok) throw new Error('failed to fetch events')
+        const json = await res.json()
+        if (alive) setEvents(json.events ?? [])
+      } catch {
+        if (alive) setEvents([])
+      } finally {
+        if (alive) setLoading(false)
+      }
+    })()
+    return () => { alive = false }
   }, [trackId])
 
   const [playingIndex, setPlayingIndex] = useState<number | null>(null)
