@@ -35,7 +35,7 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
 
-## Interaction Events (Review Flow)
+## Interaction Events (Session Flow)
 
 During the review experience, the client captures lightweight interaction events and batches them to `POST /api/events/batch`.
 
@@ -50,7 +50,7 @@ All events include:
 
 ### Reaction Event
 
-- `type`: `arcade_swipe`
+- `type`: `session_reaction`
 - `positionMs`: section midpoint
 - `payload`:
   - `sectionIndex`: number
@@ -67,7 +67,7 @@ Weights:
 
 ### Skip Event
 
-- `type`: `arcade_skip`
+- `type`: `session_skip`
 - `positionMs`: `fromMs`
 - `payload`:
   - `fromMs`: number
@@ -82,7 +82,7 @@ Use to analyze drop-off latency (e.g., histogram of `fromMs`).
 
 ### Replay Event
 
-- `type`: `arcade_replay`
+- `type`: `session_replay`
 - `positionMs`: `toMs`
 - `payload`:
   - `fromMs`: number
