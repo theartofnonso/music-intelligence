@@ -231,9 +231,7 @@
 
 /* Globally neutralize rounded utilities (remove radii) */
 @layer base {
-  [class*="rounded"] {
-    border-radius: 0 !important;
-  }
+
 }
 
 select {

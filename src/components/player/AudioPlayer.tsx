@@ -22,19 +22,13 @@ export default function AudioPlayerImproved({
   onSwipeRight?: () => void;
   onSeek?: (ms: number) => void;
 }) {
+
   const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
-  const pct = durationMs > 0 ? clamp((currentMs / durationMs) * 100, 0, 100) : 0;
+  
   const CHUNK_MS = 10_000;
   const segmentsCount = durationMs > 0 ? Math.ceil(durationMs / CHUNK_MS) : 0;
   const currentIndex = segmentsCount > 0 ? Math.min(segmentsCount - 1, Math.floor(currentMs / CHUNK_MS)) : 0;
-  const barRef = React.useRef<HTMLDivElement | null>(null);
-  const handleSeekClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!onSeek || !barRef.current || durationMs <= 0) return;
-    const rect = barRef.current.getBoundingClientRect();
-    const x = clamp(e.clientX - rect.left, 0, rect.width);
-    const ratio = x / rect.width;
-    onSeek(Math.round(durationMs * ratio));
-  };
+
   const formatMs = (ms: number) => {
     const total = Math.max(0, Math.floor(ms / 1000));
     const m = Math.floor(total / 60);
