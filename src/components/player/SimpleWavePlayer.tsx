@@ -4,35 +4,11 @@ import React from 'react'
 import { Play, Pause } from 'lucide-react'
 
 export default function SimpleWavePlayer({ src }: { src: string }) {
-  const audioRef = React.useRef<HTMLAudioElement | null>(null)
   const waveRef = React.useRef<HTMLDivElement | null>(null)
   const wsRef = React.useRef<any>(null)
+  const stopTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const [isPlaying, setIsPlaying] = React.useState(false)
-  const [durationMs, setDurationMs] = React.useState(0)
-  const [currentMs, setCurrentMs] = React.useState(0)
-
-  // Setup hidden audio element listeners
-  React.useEffect(() => {
-    const el = audioRef.current
-    if (!el) return
-    const onMeta = () => setDurationMs(Math.floor((el.duration || 0) * 1000))
-    const onTime = () => setCurrentMs(Math.floor((el.currentTime || 0) * 1000))
-    const onPlay = () => setIsPlaying(true)
-    const onPause = () => setIsPlaying(false)
-    el.addEventListener('loadedmetadata', onMeta)
-    el.addEventListener('timeupdate', onTime)
-    el.addEventListener('play', onPlay)
-    el.addEventListener('pause', onPause)
-    return () => {
-      el.removeEventListener('loadedmetadata', onMeta)
-      el.removeEventListener('timeupdate', onTime)
-      el.removeEventListener('play', onPlay)
-      el.removeEventListener('pause', onPause)
-    }
-  }, [src])
-
-  // Setup Wavesurfer (waveform + seek)
+  // Setup Wavesurfer (waveform only)
   React.useEffect(() => {
     let ws: any
     let cancelled = false
@@ -53,51 +29,42 @@ export default function SimpleWavePlayer({ src }: { src: string }) {
       })
       wsRef.current = ws
       ws.load(src)
-      ws.on('seek', (progress: number) => {
-        const el = audioRef.current
-        if (!el || !durationMs) return
-        const ms = Math.round(durationMs * progress)
-        el.currentTime = Math.max(0, Math.min((durationMs / 1000) || 0, ms / 1000))
-      })
+      // react to external snippet play events to visualize position
+      const onPlaySnippet = (ev: Event) => {
+        const detail = (ev as CustomEvent<{ ms: number; durMs?: number }>).detail
+        if (!detail || !wsRef.current) return
+        const { ms, durMs = 3000 } = detail
+        const seconds = Math.max(0, (ms || 0) / 1000)
+        try {
+          wsRef.current.setTime?.(seconds)
+        } catch {
+          const dur = wsRef.current.getDuration?.() || 1
+          wsRef.current.seekTo(Math.max(0, Math.min(1, seconds / dur)))
+        }
+        try { wsRef.current.play() } catch {}
+        if (stopTimerRef.current) clearTimeout(stopTimerRef.current)
+        stopTimerRef.current = setTimeout(() => { try { wsRef.current.pause() } catch {} }, Math.max(200, durMs))
+      }
+      window.addEventListener('play-snippet', onPlaySnippet as EventListener)
+      ;(ws as any).__onPlaySnippet = onPlaySnippet
     }
     setup()
     return () => {
       cancelled = true
+      if ((ws as any)?.__onPlaySnippet) {
+        window.removeEventListener('play-snippet', (ws as any).__onPlaySnippet)
+      }
       try { ws?.destroy() } catch {}
       wsRef.current = null
     }
-  }, [src, durationMs])
-
-  // Sync waveform to audio playback position
-  React.useEffect(() => {
-    const ws = wsRef.current
-    if (!ws || !durationMs || durationMs <= 0) return
-    const ratio = Math.max(0, Math.min(1, currentMs / durationMs))
-    try { ws.seekTo(ratio) } catch {}
-  }, [currentMs, durationMs])
+  }, [src])
 
   return (
     <div className="w-full">
-      {/* Controls + waveform on one line */}
-      <div className="flex items-center gap-3">
-        <button
-          className="grid h-10 w-10 place-items-center rounded-full bg-zinc-900 text-zinc-50 shadow-sm transition hover:bg-zinc-800 active:scale-95 cursor-pointer"
-          aria-label={isPlaying ? 'Pause' : 'Play'}
-          onClick={async () => {
-            const el = audioRef.current; if (!el) return
-            if (el.paused) { try { await el.play() } catch {} } else { el.pause() }
-          }}
-        >
-          {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-        </button>
-        <div className="flex-1">
-          <div className="relative h-20 w-full">
-            <div ref={waveRef} className="absolute inset-0" />
-          </div>
-        </div>
+      {/* Waveform only */}
+      <div className="relative h-20 w-full">
+        <div ref={waveRef} className="absolute inset-0" />
       </div>
-
-      <audio ref={audioRef} src={src} className="hidden" />
     </div>
   )
 }

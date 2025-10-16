@@ -73,6 +73,8 @@ export default function ClientEventsBreakdown({ trackId, src }: { trackId: strin
                       setPlayingIndex(i)
                       setIsPlaying(true)
                       stopTimerRef.current = setTimeout(() => { try { el.pause() } catch {} }, Math.max(500, endMs - startMs))
+                      // notify waveform to visualize
+                      window.dispatchEvent(new CustomEvent('play-snippet', { detail: { ms: startMs, durMs: endMs - startMs } }))
                     }}
                   >
                     {playingIndex === i && isPlaying ? (
