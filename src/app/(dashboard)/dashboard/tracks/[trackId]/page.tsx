@@ -31,7 +31,7 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
         const { data, error } = await supabaseServer
             .from('session')
             .select('payload, created_at')
-            .eq('id', trackId)
+            .eq('track_id', trackId)
             .order('created_at', { ascending: true })
             .limit(2000)
         if (error) throw error
