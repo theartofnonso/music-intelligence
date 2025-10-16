@@ -43,7 +43,7 @@ export default function ClientEventsBreakdown({ src, events: initialEvents }: { 
               <div key={`ev-${i}`} className="grid grid-cols-4 items-center px-3 py-2">
                 <div>
                   <button
-                    className={`rounded p-1 ${playingIndex === i && isPlaying ? 'bg-accent/60' : 'hover:bg-accent/40'} disabled:opacity-50`}
+                    className={`rounded p-1 cursor-pointer ${playingIndex === i && isPlaying ? 'bg-accent/60' : 'hover:bg-accent/40'} disabled:opacity-50`}
                     aria-label={`${playingIndex === i && isPlaying ? 'Pause' : 'Play'} snippet at ${t}`}
                     disabled={isPlaying && playingIndex !== i}
                     onClick={() => {
@@ -75,7 +75,7 @@ export default function ClientEventsBreakdown({ src, events: initialEvents }: { 
               </div>
             )
           })}
-          {events.length === 0 && !loading && (
+          {events.length === 0 && (
             <div className="px-3 py-6 text-center text-xs text-muted-foreground">No events yet for this track.</div>
           )}
         </div>

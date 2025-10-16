@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import AudioPlayer from '@/components/player/AudioPlayer'
 import { getOrCreateSessionId } from '@/lib/session'
-import { enqueue, attachLifecycleFlush } from '@/lib/eventBuffer'
+import { enqueue, attachLifecycleFlush, setFlushMode, flush } from '@/lib/eventBuffer'
 
 const CHUNK_MS = 10_000
 
@@ -30,7 +30,7 @@ export function ClientArcade({ trackId, src, title }: { trackId: string; src: st
 
     const [isPlaying, setIsPlaying] = useState(false)
 
-    useEffect(() => attachLifecycleFlush(), [])
+    useEffect(() => { setFlushMode('end'); attachLifecycleFlush() }, [])
 
     const sections = useMemo(() => buildUniformSections(durationMs, CHUNK_MS), [durationMs])
     const getSectionIndex = (ms: number) => {
@@ -167,6 +167,10 @@ export function ClientArcade({ trackId, src, title }: { trackId: string; src: st
                     <audio ref={mainRef} src={src} className="hidden" />
                     <audio ref={analyzeRef} src={src} muted className="hidden" />
                 </div>
+                {/* Flush once the last section has been emitted */}
+                {idx === sections.length - 1 && (
+                    <button className="hidden" aria-hidden onFocusCapture={async () => { await flush(); setFlushMode('auto') }} />
+                )}
             </div>
         </div>
     )

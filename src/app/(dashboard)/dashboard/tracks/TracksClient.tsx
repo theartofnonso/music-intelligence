@@ -141,7 +141,7 @@ export function TracksClient({ initialTracks }: Props) {
 											{rel && <p className="text-xs text-muted-foreground">{rel}</p>}
 										</div>
 									</a>
-									<TrackRowActions trackId={t.track_id} />
+                                <TrackRowActions trackId={t.track_id} onDeleted={(id) => setTracks((prev) => prev.filter((x) => x.track_id !== id))} />
 								</li>
 							)
 						})}

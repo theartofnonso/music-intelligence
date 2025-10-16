@@ -1,5 +1,5 @@
 import { supabaseServer } from '@/lib/supabaseServer'
-import { getAggregates, getFingerprint } from '@/lib/analytics'
+// removed analytics RPC usage; curves are computed from raw session events
 import { ArrowLeft } from 'lucide-react'
 import { curvesFromEvents, mapRawEventsToReviewEvents, buildUniformSections, type Section } from '@/lib/curves'
 import TrackCurvesChart from '@/components/charts/TrackCurvesChart'
@@ -21,9 +21,7 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
 	const track = await fetchTrack(trackId)
     console.log(track)
 	if (!track) return <div className="p-6">Track not found.</div>
-    const [aggs, fp] = await Promise.all([getAggregates(track.track_id), getFingerprint(track.track_id)])
-    const hasData = (aggs.attention.length + aggs.skip.length + aggs.replay.length + aggs.sentiment.length) > 0
-    const zeroRails = Array.from({ length: 60 }).map((_, i) => ({ second: i, valence: 0, arousal: 0 }))
+	const zeroRails = Array.from({ length: 60 }).map((_, i) => ({ second: i, valence: 0, arousal: 0 }))
 
     // Attempt to compute curves client-side from raw events (fallback to aggregates/zeros if unavailable)
     let computed: { V: number[]; A: number[] } | null = null
@@ -37,7 +35,18 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
             .order('position_ms', { ascending: true })
             .limit(2000)
         if (error) throw error
-        serverEvents = (data ?? []).map((r) => ({ type: r.event_type, positionMs: r.position_ms, payload: r.payload }))
+        const rows = (data ?? []) as Array<{ event_type: string; position_ms: number; payload: any }>
+        const flat: any[] = []
+        for (const r of rows) {
+            if (r.event_type === 'arcade_session' && Array.isArray(r.payload?.events)) {
+                for (const e of r.payload.events) {
+                    flat.push({ type: e.type, positionMs: e.positionMs ?? r.position_ms, payload: e.payload ?? null })
+                }
+            } else {
+                flat.push({ type: r.event_type, positionMs: r.position_ms, payload: r.payload ?? null })
+            }
+        }
+        serverEvents = flat
         const reviewEvents = mapRawEventsToReviewEvents(serverEvents)
         const durationMs = Math.max(...fp.map((b) => (b.second ?? 0))) * 1000 || 60_000
         const sections: Section[] = buildUniformSections(durationMs, 10_000)
@@ -77,13 +86,10 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
             <section className="space-y-3">
                 <h2 className="text-sm font-semibold">Emotional curves</h2>
                 <TrackCurvesChart
-                    data={(computed
-                        ? computed.V.map((v, i) => ({ second: i, valence: v, arousal: computed!.A[i] ?? 0 }))
-                        : (hasData
-                            ? fp.map((b:any) => ({ second: b.second, valence: b.sentiment ?? 0, arousal: b.attention ?? 0 }))
-                            : zeroRails
-                          )
-                    )}
+			data={(computed
+				? computed.V.map((v, i) => ({ second: i, valence: v, arousal: computed!.A[i] ?? 0 }))
+				: zeroRails
+				)}
                 />
             </section>
 

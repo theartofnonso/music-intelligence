@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { ExternalLink, Check, Copy, Trash2 } from 'lucide-react'
 import { deleteTrackAction } from '@/app/(dashboard)/dashboard/tracks/actions'
 
-export function TrackRowActions({ trackId }: { trackId: string }) {
+export function TrackRowActions({ trackId, onDeleted }: { trackId: string; onDeleted?: (trackId: string) => void }) {
 	const [copied, setCopied] = useState(false)
 	const [pending, startTransition] = useTransition()
     const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/arcade/${trackId}` : `/arcade/${trackId}`
@@ -18,10 +18,13 @@ export function TrackRowActions({ trackId }: { trackId: string }) {
 		} catch {}
 	}
 
-	function onDelete() {
+    function onDelete() {
 		if (!confirm('Delete this track? This cannot be undone.')) return
 		startTransition(async () => {
-			try { await deleteTrackAction(trackId) } catch {}
+            try {
+                await deleteTrackAction(trackId)
+                onDeleted?.(trackId)
+            } catch {}
 		})
 	}
 

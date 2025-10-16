@@ -60,31 +60,24 @@ create table if not exists public.track (
 	created_at timestamptz default now()
 );
 
-create table if not exists public.event (
-	event_id uuid primary key default gen_random_uuid(),
-	session_id uuid not null,
+create table if not exists public.session (
+	session_id uuid primary key default gen_random_uuid(),
 	track_id uuid not null references public.track(track_id) on delete cascade,
-	event_type text not null,
-	position_ms int not null,
-	payload jsonb,
-	client_ts timestamptz,
-	server_ts timestamptz default now(),
-	seq int not null
+	payload jsonb not null,
+	created_at timestamptz default now()
 );
 
 -- =====================
 -- Indexes & constraints
 -- =====================
-create unique index if not exists event_session_seq_idx on public.event(session_id, seq);
-create index if not exists event_track_pos_idx on public.event(track_id, position_ms);
-create index if not exists event_track_time_idx on public.event(track_id, server_ts);
+create index if not exists session_track_time_idx on public.session(track_id, created_at);
 
 -- =====================
 -- Row Level Security & Grants
 -- =====================
 -- Enable RLS
 alter table public.track enable row level security;
-alter table public.event enable row level security;
+alter table public.session enable row level security;
 
 -- Base grants so roles can access schema
 grant usage on schema public to anon, authenticated;
@@ -93,9 +86,9 @@ grant usage on schema public to anon, authenticated;
 grant select, insert, update, delete on public.track to authenticated;
 revoke all on public.track from anon;
 
--- Event table: open (read + insert for everyone)
-grant select, insert on public.event to anon, authenticated;
-revoke update, delete on public.event from anon, authenticated;
+-- Session table: open (read + insert for everyone)
+grant select, insert on public.session to anon, authenticated;
+revoke update, delete on public.session from anon, authenticated;
 
 -- Policies (guarded)
 -- track policies
@@ -143,13 +136,13 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- event policies
+-- session policies
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'event' AND policyname = 'event_select_all'
+    WHERE schemaname = 'public' AND tablename = 'session' AND policyname = 'session_select_all'
   ) THEN
-    CREATE POLICY event_select_all ON public.event
+    CREATE POLICY session_select_all ON public.session
       FOR SELECT USING (true);
   END IF;
 END $$;
@@ -157,49 +150,9 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'event' AND policyname = 'event_insert_all'
+    WHERE schemaname = 'public' AND tablename = 'session' AND policyname = 'session_insert_all'
   ) THEN
-    CREATE POLICY event_insert_all ON public.event
+    CREATE POLICY session_insert_all ON public.session
       FOR INSERT WITH CHECK (true);
   END IF;
 END $$;
-
--- =====================
--- RPCs (aggregations)
--- =====================
-create or replace function public.agg_skip_seconds(p_track_id uuid)
-returns table(second int, count bigint)
-language sql stable as $$
-	select floor(position_ms/1000)::int as second, count(*)::bigint
-	from public.event
-	where track_id = p_track_id and event_type = 'arcade_skip'
-	group by 1 order by 1
-$$;
-
-create or replace function public.agg_replay_seconds(p_track_id uuid)
-returns table(second int, count bigint)
-language sql stable as $$
-	select floor(position_ms/1000)::int as second, count(*)::bigint
-	from public.event
-	where track_id = p_track_id and event_type = 'arcade_replay'
-	group by 1 order by 1
-$$;
-
-create or replace function public.agg_sentiment_seconds(p_track_id uuid)
-returns table(second int, slider_avg float8)
-language sql stable as $$
-	select floor(position_ms/1000)::int as second,
-		avg(coalesce((payload->>'weight')::float8, 0)) as slider_avg
-	from public.event
-	where track_id = p_track_id and event_type = 'arcade_reaction'
-	group by 1 order by 1
-$$;
-
-create or replace function public.agg_attention_seconds(p_track_id uuid)
-returns table(second int, ticks bigint)
-language sql stable as $$
-	select floor(position_ms/1000)::int as second, count(*)::bigint as ticks
-	from public.event
-	where track_id = p_track_id and event_type = 'timeupdate_tick'
-	group by 1 order by 1
-$$;

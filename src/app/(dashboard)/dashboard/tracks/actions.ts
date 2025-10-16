@@ -31,17 +31,23 @@ export async function deleteTrackAction(trackId: string) {
 
   if (t?.storage_path) {
     try {
-      // parse path from public URL: assume bucket 'audio-public' and public URL
+      // Parse bucket and object path from public URL: /storage/v1/object/public/<bucket>/<objectPath>
       const url = new URL(t.storage_path)
       const parts = url.pathname.split('/')
-      const pubIdx = parts.findIndex((p) => p === 'public')
-      const filePath = pubIdx >= 0 ? parts.slice(pubIdx + 1).join('/') : ''
-      if (filePath) {
+      const publicIdx = parts.findIndex((p) => p === 'public')
+      let bucket: string | null = null
+      let objectPath = ''
+      if (publicIdx >= 0) {
+        const after = parts.slice(publicIdx + 1) // [bucket, ...object]
+        bucket = after.shift() ?? null
+        objectPath = after.join('/')
+      }
+      if (bucket && objectPath) {
         const storage = createClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL as string,
           process.env.SUPABASE_SERVICE_ROLE_KEY as string,
         )
-        await storage.storage.from('audio-public').remove([filePath])
+        await storage.storage.from(bucket).remove([objectPath])
       }
     } catch {}
   }
