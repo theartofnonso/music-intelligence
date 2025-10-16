@@ -1,5 +1,7 @@
 import { supabaseServer } from '@/lib/supabaseServer'
 import { getAggregates, getFingerprint } from '@/lib/analytics'
+import { curvesFromEvents, mapRawEventsToReviewEvents, buildUniformSections, type Section } from '@/lib/curves'
+import TrackCurvesChart from '@/components/charts/TrackCurvesChart'
 
 async function fetchTrack(trackId: string) {
 	const { data, error } = await supabaseServer
@@ -25,6 +27,21 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
         skip: s % 11 === 0 ? 0.8 : 0,
         replay: s % 17 === 0 ? 0.7 : 0,
     }))
+
+    // Attempt to compute curves client-side from raw events (fallback to existing aggregates if unavailable)
+    let computed: { V: number[]; A: number[] } | null = null
+    let binsSeconds: number[] = []
+    try {
+        // TODO: replace with real fetch to /api/events/[trackId] if/when available
+        const rawEvents: any[] = []
+        const reviewEvents = mapRawEventsToReviewEvents(rawEvents)
+        const durationMs = Math.max(...fp.map((b) => (b.second ?? 0))) * 1000 || 60_000
+        const sections: Section[] = buildUniformSections(durationMs, 10_000)
+        if (reviewEvents.length > 0) {
+            computed = curvesFromEvents(sections, reviewEvents, durationMs, { sigmaMs: 2500, fps: 1, bleedMs: 1500 })
+            binsSeconds = Array.from({ length: computed.V.length }).map((_, i) => i)
+        }
+    } catch {}
 	return (
         <div className="space-y-6">
             {/* Hero */}
@@ -39,28 +56,15 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
             {/* Valence/Arousal Rail + Skip/Replay markers */}
             <section className="space-y-3">
                 <h2 className="text-sm font-semibold">Emotional curves</h2>
-                <div className="space-y-1">
-                    <div className="relative h-8 w-full rounded bg-accent/40 overflow-hidden">
-                        <div className="absolute inset-0 flex">
-                            {(hasData ? fp : dummyRails).map((b: any, i: number) => (
-                                <div key={`va-${i}`} className="flex-1 relative">
-                                    <div className="absolute inset-x-0 bottom-0 bg-green-600/50" style={{ height: `${Math.max(0, (b.sentiment ?? b.valence) + 1) * 25}%` }} />
-                                    <div className="absolute inset-x-0 top-0 bg-blue-600/40" style={{ height: `${Math.max(0, (b.attention ?? b.arousal)) * 35}%` }} />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="relative h-5 w-full">
-                        <div className="absolute inset-0 flex">
-                            {(hasData ? fp : dummyRails).map((b: any, i: number) => (
-                                <div key={`mr-${i}`} className="relative flex-1">
-                                    {((b.skip ?? 0) > 0) && <div className="absolute inset-x-0 bottom-0 h-2 bg-red-500/70" />}
-                                    {((b.replay ?? 0) > 0) && <div className="absolute inset-x-0 top-0 h-2 bg-emerald-500/70" />}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
+                <TrackCurvesChart
+                    data={(computed
+                        ? computed.V.map((v, i) => ({ second: i, valence: v, arousal: computed!.A[i] ?? 0 }))
+                        : (hasData
+                            ? fp.map((b:any) => ({ second: b.second, valence: b.sentiment ?? 0, arousal: b.attention ?? 0 }))
+                            : dummyRails.map((b:any) => ({ second: b.second, valence: b.valence, arousal: b.arousal, skip: b.skip, replay: b.replay }))
+                          )
+                    )}
+                />
             </section>
 
             {/* Fingerprint mini-bars */}
