@@ -113,7 +113,7 @@ returns table(second int, count bigint)
 language sql stable as $$
 	select floor(position_ms/1000)::int as second, count(*)::bigint
 	from public.event
-	where track_id = p_track_id and event_type = 'skip_forward'
+	where track_id = p_track_id and event_type = 'arcade_skip'
 	group by 1 order by 1
 $$;
 
@@ -122,7 +122,7 @@ returns table(second int, count bigint)
 language sql stable as $$
 	select floor(position_ms/1000)::int as second, count(*)::bigint
 	from public.event
-	where track_id = p_track_id and event_type in ('skip_backward')
+	where track_id = p_track_id and event_type = 'arcade_replay'
 	group by 1 order by 1
 $$;
 
@@ -130,9 +130,9 @@ create or replace function public.agg_sentiment_seconds(p_track_id uuid)
 returns table(second int, slider_avg float8)
 language sql stable as $$
 	select floor(position_ms/1000)::int as second,
-		avg((payload->>'value')::float8) as slider_avg
+		avg(coalesce((payload->>'weight')::float8, 0)) as slider_avg
 	from public.event
-	where track_id = p_track_id and event_type = 'sentiment_slider'
+	where track_id = p_track_id and event_type = 'arcade_reaction'
 	group by 1 order by 1
 $$;
 

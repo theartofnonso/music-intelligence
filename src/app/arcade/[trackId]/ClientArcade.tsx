@@ -87,9 +87,12 @@ export function ClientArcade({ trackId, src, title }: { trackId: string; src: st
         setReactions((v) => ({ ...v, [idx]: reaction }))
     }
 
+    const emittedRef = useRef<Record<number, boolean>>({})
+
     function emitReactionForSection(sectionIndex: number) {
         const section = sections[sectionIndex]
         if (!section) return
+        if (emittedRef.current[sectionIndex]) return
         const { start_ms, end_ms } = section
         const reaction = reactions[sectionIndex] ?? 0
         const eventName = reaction === 1 ? 'LIKE' : reaction === -1 ? 'DISLIKE' : 'NEUTRAL'
@@ -102,6 +105,7 @@ export function ClientArcade({ trackId, src, title }: { trackId: string; src: st
             clientTs: Date.now(),
             payload: { sectionIndex, startMs: start_ms, endMs: end_ms, reaction, event: eventName, weight },
         } as any)
+        emittedRef.current[sectionIndex] = true
     }
 
     useEffect(() => {
@@ -129,6 +133,8 @@ export function ClientArcade({ trackId, src, title }: { trackId: string; src: st
                             const toMs = Math.max(0, Math.min(durationMs || 0, ms))
                             const fromSectionIndex = getSectionIndex(fromMs)
                             const toSectionIndex = getSectionIndex(toMs)
+                            // ensure we emit a reaction for the section being exited (if not already)
+                            emitReactionForSection(fromSectionIndex)
                             if (toMs > fromMs) {
                                 // Skip forward: capture latency position
                                 enqueue({
