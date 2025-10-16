@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Play, Pause } from 'lucide-react'
 
 type RawEvent = { type: string; positionMs: number; payload?: any }
@@ -12,29 +12,10 @@ function fmtMs(ms: number) {
   return `${m}:${r.toString().padStart(2, '0')}`
 }
 
-export default function ClientEventsBreakdown({ trackId, src }: { trackId: string; src: string }) {
-  const [events, setEvents] = useState<RawEvent[]>([])
-  const [loading, setLoading] = useState(false)
+export default function ClientEventsBreakdown({ src, events: initialEvents }: { src: string; events: RawEvent[] }) {
+  const [events] = useState<RawEvent[]>(initialEvents)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    let alive = true
-    setLoading(true)
-    ;(async () => {
-      try {
-        const res = await fetch(`/api/events/track/${trackId}`, { cache: 'no-store' })
-        if (!res.ok) throw new Error('failed to fetch events')
-        const json = await res.json()
-        if (alive) setEvents(json.events ?? [])
-      } catch {
-        if (alive) setEvents([])
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
-    return () => { alive = false }
-  }, [trackId])
 
   const [playingIndex, setPlayingIndex] = useState<number | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -43,7 +24,6 @@ export default function ClientEventsBreakdown({ trackId, src }: { trackId: strin
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold">Reaction Analysis</h2>
-        {loading && <span className="text-xs text-muted-foreground">Loading…</span>}
       </div>
       <div className="rounded border">
         <div className="grid grid-cols-4 border-b px-3 py-2 text-xs font-semibold">

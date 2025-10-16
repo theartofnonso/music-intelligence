@@ -1,11 +1,13 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
-import { ExternalLink, Check, Copy } from 'lucide-react'
+import { ExternalLink, Check, Copy, Trash2 } from 'lucide-react'
+import { deleteTrackAction } from '@/app/(dashboard)/dashboard/tracks/actions'
 
 export function TrackRowActions({ trackId }: { trackId: string }) {
 	const [copied, setCopied] = useState(false)
+	const [pending, startTransition] = useTransition()
     const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/arcade/${trackId}` : `/arcade/${trackId}`
 
 	async function copyLink() {
@@ -14,6 +16,13 @@ export function TrackRowActions({ trackId }: { trackId: string }) {
 			setCopied(true)
 			setTimeout(() => setCopied(false), 1500)
 		} catch {}
+	}
+
+	function onDelete() {
+		if (!confirm('Delete this track? This cannot be undone.')) return
+		startTransition(async () => {
+			try { await deleteTrackAction(trackId) } catch {}
+		})
 	}
 
 	return (
@@ -25,6 +34,9 @@ export function TrackRowActions({ trackId }: { trackId: string }) {
 			</a>
 			<Button variant="outline" size="icon-sm" onClick={copyLink} aria-label={copied ? 'Copied' : 'Copy link'}>
 				{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+			</Button>
+			<Button variant="destructive" size="icon-sm" onClick={onDelete} disabled={pending} aria-label="Delete track">
+				<Trash2 className="h-4 w-4" />
 			</Button>
 		</div>
 	)

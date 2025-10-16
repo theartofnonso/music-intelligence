@@ -1,6 +1,6 @@
 -- ====================================================================
--- music-intelligence schema (idempotent)
--- Tables, indexes, RLS, grants, and RPCs
+-- music-intelligence schema (idempotent, no DROP statements)
+-- Tables, indexes, RLS, grants, storage policies, and RPCs
 -- ====================================================================
 
 -- Extensions
@@ -14,15 +14,39 @@ insert into storage.buckets (id, name, public)
 select 'audio-public', 'audio-public', true
 where not exists (select 1 from storage.buckets where id = 'audio-public');
 
--- Allow public reads from the bucket
-create policy "Public read audio-public" on storage.objects
-for select using (bucket_id = 'audio-public');
+-- Storage policies (guarded via DO blocks, since CREATE POLICY lacks IF NOT EXISTS)
+-- Public read
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Public read audio-public'
+  ) THEN
+    CREATE POLICY "Public read audio-public" ON storage.objects
+    FOR SELECT USING (bucket_id = 'audio-public');
+  END IF;
+END $$;
 
--- Allow uploads for anyone (anon + authenticated)
-create policy "Anon upload audio-public" on storage.objects
-for insert to anon with check (bucket_id = 'audio-public');
-create policy "Auth upload audio-public" on storage.objects
-for insert to authenticated with check (bucket_id = 'audio-public');
+-- Anonymous upload
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Anon upload audio-public'
+  ) THEN
+    CREATE POLICY "Anon upload audio-public" ON storage.objects
+    FOR INSERT TO anon WITH CHECK (bucket_id = 'audio-public');
+  END IF;
+END $$;
+
+-- Authenticated upload
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Auth upload audio-public'
+  ) THEN
+    CREATE POLICY "Auth upload audio-public" ON storage.objects
+    FOR INSERT TO authenticated WITH CHECK (bucket_id = 'audio-public');
+  END IF;
+END $$;
 
 -- =====================
 -- Tables
@@ -37,7 +61,7 @@ create table if not exists public.track (
 );
 
 create table if not exists public.event (
-	event_id bigserial primary key,
+	event_id uuid primary key default gen_random_uuid(),
 	session_id uuid not null,
 	track_id uuid not null references public.track(track_id) on delete cascade,
 	event_type text not null,
@@ -73,37 +97,72 @@ revoke all on public.track from anon;
 grant select, insert on public.event to anon, authenticated;
 revoke update, delete on public.event from anon, authenticated;
 
--- Policy definitions
+-- Policies (guarded)
+-- track policies
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'track' AND policyname = 'track_select_auth'
+  ) THEN
+    CREATE POLICY track_select_auth ON public.track
+      FOR SELECT TO authenticated
+      USING (auth.role() = 'authenticated');
+  END IF;
+END $$;
 
--- Policies: track (authenticated only)
-create policy track_select_auth on public.track
-	for select
-	to authenticated
-	using (auth.role() = 'authenticated');
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'track' AND policyname = 'track_insert_auth'
+  ) THEN
+    CREATE POLICY track_insert_auth ON public.track
+      FOR INSERT TO authenticated
+      WITH CHECK (auth.role() = 'authenticated');
+  END IF;
+END $$;
 
-create policy track_insert_auth on public.track
-	for insert
-	to authenticated
-	with check (auth.role() = 'authenticated');
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'track' AND policyname = 'track_update_auth'
+  ) THEN
+    CREATE POLICY track_update_auth ON public.track
+      FOR UPDATE TO authenticated
+      USING (auth.role() = 'authenticated');
+  END IF;
+END $$;
 
-create policy track_update_auth on public.track
-	for update
-	to authenticated
-	using (auth.role() = 'authenticated');
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'track' AND policyname = 'track_delete_auth'
+  ) THEN
+    CREATE POLICY track_delete_auth ON public.track
+      FOR DELETE TO authenticated
+      USING (auth.role() = 'authenticated');
+  END IF;
+END $$;
 
-create policy track_delete_auth on public.track
-	for delete
-	to authenticated
-	using (auth.role() = 'authenticated');
+-- event policies
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'event' AND policyname = 'event_select_all'
+  ) THEN
+    CREATE POLICY event_select_all ON public.event
+      FOR SELECT USING (true);
+  END IF;
+END $$;
 
--- Policies: event (open to all for read & insert)
-create policy event_select_all on public.event
-	for select
-	using (true);
-
-create policy event_insert_all on public.event
-	for insert
-	with check (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'event' AND policyname = 'event_insert_all'
+  ) THEN
+    CREATE POLICY event_insert_all ON public.event
+      FOR INSERT WITH CHECK (true);
+  END IF;
+END $$;
 
 -- =====================
 -- RPCs (aggregations)

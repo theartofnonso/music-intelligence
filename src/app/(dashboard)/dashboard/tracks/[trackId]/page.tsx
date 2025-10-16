@@ -3,7 +3,6 @@ import { getAggregates, getFingerprint } from '@/lib/analytics'
 import { ArrowLeft } from 'lucide-react'
 import { curvesFromEvents, mapRawEventsToReviewEvents, buildUniformSections, type Section } from '@/lib/curves'
 import TrackCurvesChart from '@/components/charts/TrackCurvesChart'
-import ClientPlayerSection from './ClientPlayerSection'
 import ClientEventsBreakdown from './ClientEventsBreakdown'
 import SimpleWavePlayer from '@/components/player/SimpleWavePlayer'
 
@@ -20,18 +19,26 @@ async function fetchTrack(trackId: string) {
 export default async function TrackDetail({ params }: { params: Promise<{ trackId: string }> }) {
 	const { trackId } = await params
 	const track = await fetchTrack(trackId)
+    console.log(track)
 	if (!track) return <div className="p-6">Track not found.</div>
     const [aggs, fp] = await Promise.all([getAggregates(track.track_id), getFingerprint(track.track_id)])
     const hasData = (aggs.attention.length + aggs.skip.length + aggs.replay.length + aggs.sentiment.length) > 0
     const zeroRails = Array.from({ length: 60 }).map((_, i) => ({ second: i, valence: 0, arousal: 0 }))
 
-    // Attempt to compute curves client-side from raw events (fallback to existing aggregates if unavailable)
+    // Attempt to compute curves client-side from raw events (fallback to aggregates/zeros if unavailable)
     let computed: { V: number[]; A: number[] } | null = null
     let binsSeconds: number[] = []
+    let serverEvents: any[] = []
     try {
-        // TODO: replace with real fetch to /api/events/[trackId] if/when available
-        const rawEvents: any[] = []
-        const reviewEvents = mapRawEventsToReviewEvents(rawEvents)
+        const { data, error } = await supabaseServer
+            .from('event')
+            .select('event_type, position_ms, payload')
+            .eq('track_id', trackId)
+            .order('position_ms', { ascending: true })
+            .limit(2000)
+        if (error) throw error
+        serverEvents = (data ?? []).map((r) => ({ type: r.event_type, positionMs: r.position_ms, payload: r.payload }))
+        const reviewEvents = mapRawEventsToReviewEvents(serverEvents)
         const durationMs = Math.max(...fp.map((b) => (b.second ?? 0))) * 1000 || 60_000
         const sections: Section[] = buildUniformSections(durationMs, 10_000)
         if (reviewEvents.length > 0) {
@@ -63,7 +70,7 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
 
             {/* Event breakdown */}
             <section>
-                <ClientEventsBreakdown trackId={track.track_id} src={track.storage_path ?? ''} />
+                <ClientEventsBreakdown src={track.storage_path ?? ''} events={serverEvents} />
             </section>
 
             {/* Valence/Arousal Rail + Skip/Replay markers */}

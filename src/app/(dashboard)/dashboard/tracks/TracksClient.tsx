@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 // no card components
 import { UploadCloud, Music, Upload, X } from 'lucide-react'
 import { supabaseBrowser } from '@/lib/supabaseClient'
+import { createTrackAction } from './actions'
 import { formatRelativeTime } from '@/lib/utils'
 import { TrackRowActions } from '@/components/dashboard/TrackRowActions'
 import { Progress } from '@/components/ui/progress'
@@ -63,14 +64,10 @@ export function TracksClient({ initialTracks }: Props) {
 			if (upErr) throw upErr
 			const { data: pub } = supabaseBrowser.storage.from('audio-public').getPublicUrl(path)
 			console.log(`[upload][${reqId}] got publicUrl`, { publicUrl: pub.publicUrl })
-			const res = await fetch('/api/tracks/create', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ title: file.name, storage_path: pub.publicUrl }),
-			})
-			console.log(`[upload][${reqId}] POST /api/tracks/create →`, res.status)
-			if (!res.ok) throw new Error('Failed to create track')
-			const json = (await res.json()) as { track_id: string; title: string | null; artist?: string | null; storage_path: string; created_at?: string }
+			const form = new FormData()
+			form.set('title', file.name)
+			form.set('storage_path', pub.publicUrl)
+			const json = await createTrackAction(form) as { track_id: string; title: string | null; storage_path: string; created_at?: string }
 			console.log(`[upload][${reqId}] success`, { track_id: json.track_id })
 			setUploadProgress(100)
 			setTracks((prev) => [{ track_id: json.track_id, title: json.title ?? file.name, created_at: json.created_at }, ...prev])
