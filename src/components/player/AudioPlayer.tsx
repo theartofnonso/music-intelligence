@@ -9,8 +9,8 @@ export default function AudioPlayerImproved({
   durationMs = 0,
   isPlaying = false,
   onTogglePlay,
-  onSwipeLeft,
-  onSwipeRight,
+  onDislike,
+  onLike,
   onSeek,
 }: {
   src?: string;
@@ -18,13 +18,13 @@ export default function AudioPlayerImproved({
   durationMs?: number;
   isPlaying?: boolean;
   onTogglePlay?: () => void;
-  onSwipeLeft?: () => void;
-  onSwipeRight?: () => void;
+  onDislike?: () => void;
+  onLike?: () => void;
   onSeek?: (ms: number) => void;
 }) {
 
   const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
-  
+
   const CHUNK_MS = 10_000;
   const segmentsCount = durationMs > 0 ? Math.ceil(durationMs / CHUNK_MS) : 0;
   const currentIndex = segmentsCount > 0 ? Math.min(segmentsCount - 1, Math.floor(currentMs / CHUNK_MS)) : 0;
@@ -77,7 +77,7 @@ export default function AudioPlayerImproved({
     setup();
     return () => {
       cancelled = true;
-      try { ws?.destroy(); } catch {}
+      try { ws?.destroy(); } catch { }
       wsRef.current = null;
     };
   }, [src]);
@@ -87,7 +87,7 @@ export default function AudioPlayerImproved({
     const ws = wsRef.current;
     if (!ws || !durationMs || durationMs <= 0) return;
     const ratio = clamp(currentMs / durationMs, 0, 1);
-    try { ws.seekTo(ratio); } catch {}
+    try { ws.seekTo(ratio); } catch { }
   }, [currentMs, durationMs]);
 
   return (
@@ -107,7 +107,7 @@ export default function AudioPlayerImproved({
 
       {/* Transport controls (bottom center) */}
       <div className="mt-6 flex items-center justify-center gap-6">
-      <button
+        <button
           className="rounded-full p-3 text-zinc-800 transition hover:bg-zinc-200/70 active:scale-95 cursor-pointer"
           aria-label="Replay section"
           onClick={handleReplaySection}
@@ -117,7 +117,7 @@ export default function AudioPlayerImproved({
         <button
           className="rounded-full p-3 text-zinc-800 transition hover:bg-zinc-200/70 active:scale-95 cursor-pointer"
           aria-label="Previous"
-          onClick={onSwipeLeft}
+          onClick={onDislike}
         >
           <ThumbsDown className="h-7 w-7" />
         </button>
@@ -133,7 +133,7 @@ export default function AudioPlayerImproved({
         <button
           className="rounded-full p-3 text-zinc-800 transition hover:bg-zinc-200/70 active:scale-95 cursor-pointer"
           aria-label="Next"
-          onClick={onSwipeRight}
+          onClick={onLike}
         >
           <ThumbsUp className="h-7 w-7" />
         </button>

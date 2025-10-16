@@ -96,10 +96,10 @@ export function TracksClient({ initialTracks }: Props) {
 						{file && <p className="mt-2 text-xs">Selected: {file.name}</p>}
 					</div>
 					<div className="mt-4 flex items-center justify-end gap-2">
-						<Button variant="secondary" type="button" onClick={() => { setFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}>
+						{file && <Button variant="secondary" type="button" onClick={() => { setFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}>
 							<X className="h-4 w-4" />
 							Cancel
-						</Button>
+						</Button>}
 						<Button disabled={!file || busy} onClick={upload}>
 							<Upload className="h-4 w-4" />
 							Upload

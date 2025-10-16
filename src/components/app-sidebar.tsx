@@ -25,13 +25,13 @@ export function AppSidebarLayout({ children }: { children: React.ReactNode }) {
 								{navItems.map((item) => {
 									const active = pathname.startsWith(item.url)
 									return (
-										<SidebarMenuItem key={item.url}>
-											<SidebarMenuButton asChild isActive={active}>
-												<Link href={item.url} className={cn(active && 'bg-sidebar-accent')}>
-													{item.title}
-												</Link>
-											</SidebarMenuButton>
-										</SidebarMenuItem>
+                                        <SidebarMenuItem key={item.url}>
+                                            <SidebarMenuButton asChild isActive={active}>
+                                                <Link href={item.url} className={cn('w-full cursor-pointer', active && 'bg-sidebar-accent')}>
+                                                    <span className="block w-full">{item.title}</span>
+                                                </Link>
+                                            </SidebarMenuButton>
+                                        </SidebarMenuItem>
 									)
 								})}
 							</SidebarMenu>

@@ -82,19 +82,21 @@ export function ClientArcade({ trackId, src, title }: { trackId: string; src: st
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [idx, sections.length])
 
-    function recordVoteOnce(swipe: -1 | 0 | 1) {
+    function recordVoteOnce(reaction: -1 | 0 | 1) {
         if (!sections[idx]) return
         // do not advance or pause; just capture once
         if (voted[idx] !== undefined) return
         const { start_ms, end_ms } = sections[idx]
-        setVoted((v) => ({ ...v, [idx]: swipe }))
+        setVoted((v) => ({ ...v, [idx]: reaction }))
+        const eventName = reaction === 1 ? 'LIKE' : reaction === -1 ? 'DISLIKE' : 'NEUTRAL'
+        const weight = reaction === 1 ? 1 : reaction === -1 ? -1 : 0
         enqueue({
             sessionId,
             trackId,
             type: 'arcade_swipe',
             positionMs: Math.floor((start_ms + end_ms) / 2),
             clientTs: Date.now(),
-            payload: { sectionIndex: idx, startMs: start_ms, endMs: end_ms, swipe },
+            payload: { sectionIndex: idx, startMs: start_ms, endMs: end_ms, swipe: reaction, event: eventName, weight },
         } as any)
     }
 
@@ -136,7 +138,7 @@ export function ClientArcade({ trackId, src, title }: { trackId: string; src: st
                                     type: 'arcade_skip',
                                     positionMs: fromMs,
                                     clientTs: Date.now(),
-                                    payload: { fromMs, toMs, deltaMs: toMs - fromMs, fromSectionIndex, toSectionIndex },
+                                    payload: { fromMs, toMs, deltaMs: toMs - fromMs, fromSectionIndex, toSectionIndex, event: 'SKIP', weight: -1 },
                                 } as any)
                             } else if (toMs < fromMs) {
                                 // Replay/backward seek
@@ -146,13 +148,13 @@ export function ClientArcade({ trackId, src, title }: { trackId: string; src: st
                                     type: 'arcade_replay',
                                     positionMs: toMs,
                                     clientTs: Date.now(),
-                                    payload: { fromMs, toMs, deltaMs: toMs - fromMs, fromSectionIndex, toSectionIndex },
+                                    payload: { fromMs, toMs, deltaMs: toMs - fromMs, fromSectionIndex, toSectionIndex, event: 'REPLAY', weight: 1 },
                                 } as any)
                             }
                             el.currentTime = Math.max(0, Math.min((durationMs / 1000) || 0, toMs / 1000))
                         }}
-                        onSwipeLeft={() => submitVote(-1)}
-                        onSwipeRight={() => submitVote(1)}
+                        onDislike={() => submitVote(-1)}
+                        onLike={() => submitVote(1)}
                         isPlaying={isPlaying}
                         onTogglePlay={async () => { const el = mainRef.current; if (!el) return; if (el.paused) { try { await el.play() } catch { } } else { el.pause() } }}
                     />
