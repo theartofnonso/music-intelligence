@@ -1,7 +1,9 @@
 import { supabaseServer } from '@/lib/supabaseServer'
 import { getAggregates, getFingerprint } from '@/lib/analytics'
+import { ArrowLeft } from 'lucide-react'
 import { curvesFromEvents, mapRawEventsToReviewEvents, buildUniformSections, type Section } from '@/lib/curves'
 import TrackCurvesChart from '@/components/charts/TrackCurvesChart'
+import ClientPlayerSection from './ClientPlayerSection'
 
 async function fetchTrack(trackId: string) {
 	const { data, error } = await supabaseServer
@@ -44,6 +46,12 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
     } catch {}
 	return (
         <div className="space-y-6">
+            <div>
+                <a href="/dashboard/tracks" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:font-semibold">
+                    <ArrowLeft className="h-4 w-4" />
+                    <span>Back to tracks</span>
+                </a>
+            </div>
             {/* Hero */}
             <div className="flex items-center gap-4">
                 <div className="grid size-16 place-items-center rounded-lg bg-foreground/10" />
@@ -52,6 +60,11 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
                     <p className="text-xs text-muted-foreground">Analysis overview</p>
                 </div>
             </div>
+
+            {/* Player */}
+            <section>
+                {track.storage_path && <ClientPlayerSection src={track.storage_path} />}
+            </section>
 
             {/* Valence/Arousal Rail + Skip/Replay markers */}
             <section className="space-y-3">
