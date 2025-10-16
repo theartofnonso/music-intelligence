@@ -1,14 +1,8 @@
 "use client"
 
-import {
-  ComposedChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-} from 'recharts'
+import React from 'react'
+
+import { ComposedChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts'
 
 type Point = {
   second: number
@@ -23,16 +17,12 @@ export function TrackCurvesChart({ data }: { data: Point[] }) {
       <div className="h-[220px] w-full rounded border">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 12, right: 12, bottom: 8, left: 12 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="second" tickFormatter={fmt} fontSize={10} stroke="#777" />
-            <YAxis yAxisId="valence" domain={[-1, 1]} ticks={[-1, -0.5, 0, 0.5, 1]} width={28} fontSize={10} stroke="#777" />
-            <YAxis yAxisId="arousal" orientation="right" domain={[0, 1]} ticks={[0, 0.5, 1]} width={28} fontSize={10} stroke="#777" />
-            <Tooltip formatter={(v: any, n: any) => [typeof v === 'number' ? v.toFixed(2) : v, n]} labelFormatter={(l) => fmt(Number(l))} />
-            {/* Valence area (centered) */}
+            <XAxis dataKey="second" tickFormatter={fmt} fontSize={10} stroke="#777" tickLine={false} axisLine={false} />
+            <YAxis yAxisId="valence" domain={[-1, 1]} ticks={[-1, -0.5, 0, 0.5, 1]} width={28} fontSize={10} stroke="#777" tickLine={false} axisLine={false} />
+            <YAxis yAxisId="arousal" orientation="right" domain={[0, 1]} ticks={[0, 0.5, 1]} width={28} fontSize={10} stroke="#777" tickLine={false} axisLine={false} />
+            <Tooltip formatter={(v: any) => (typeof v === 'number' ? v.toFixed(2) : v)} labelFormatter={(l) => fmt(Number(l))} />
             <Area type="monotone" yAxisId="valence" dataKey="valence" stroke="#16a34a" fill="#16a34a22" strokeWidth={2} dot={false} />
-            {/* Arousal area */}
             <Area type="monotone" yAxisId="arousal" dataKey="arousal" stroke="#3b82f6" fill="#3b82f622" strokeWidth={2} dot={false} />
-            {/* Only valence & arousal areas */}
           </ComposedChart>
         </ResponsiveContainer>
       </div>

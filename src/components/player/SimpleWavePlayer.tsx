@@ -91,7 +91,9 @@ export default function SimpleWavePlayer({ src }: { src: string }) {
           {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
         </button>
         <div className="flex-1">
-          <div ref={waveRef} className="h-20 w-full" />
+          <div className="relative h-20 w-full">
+            <div ref={waveRef} className="absolute inset-0" />
+          </div>
         </div>
       </div>
 
