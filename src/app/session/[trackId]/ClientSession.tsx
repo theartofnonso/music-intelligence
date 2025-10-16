@@ -2,10 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import AudioPlayer from '@/components/player/AudioPlayer'
-import { getOrCreateSessionId } from '@/lib/session'
-import { enqueue, attachLifecycleFlush, setFlushMode, flush } from '@/lib/eventBuffer'
+import { sendSessionPayloadAction } from '../actions'
 
 const CHUNK_MS = 10_000
+
+// single-send using server action (no API route)
+async function sendSessionPayload(args: { trackId: string; events: unknown[] }) {
+    const { trackId, events } = args
+    if (!events || (Array.isArray(events) && events.length === 0)) return
+    await sendSessionPayloadAction({ trackId, events })
+}
 
 function buildUniformSections(durationMs: number, chunkMs = CHUNK_MS) {
     const out: { start_ms: number; end_ms: number }[] = []
@@ -17,20 +23,31 @@ function buildUniformSections(durationMs: number, chunkMs = CHUNK_MS) {
     return out
 }
 
-export function ClientSession({ trackId, src, title }: { trackId: string; src: string; title: string }) {
+export function ClientSession({ trackId, src }: { trackId: string; src: string }) {
     // Main player: uninterrupted full-song playback
     const mainRef = useRef<HTMLAudioElement | null>(null)
-    // Analyzer: muted, steps through sections to handle timeouts/advance
-    const analyzeRef = useRef<HTMLAudioElement | null>(null)
     const [durationMs, setDurationMs] = useState<number>(0)
     const [currentMs, setCurrentMs] = useState<number>(0)
-    const [idx, setIdx] = useState(0)
-    const [reactions, setReactions] = useState<Record<number, -1 | 0 | 1>>({})
-    const sessionId = getOrCreateSessionId()
-
+    const localEventsRef = useRef<any[]>([])
+    const sentRef = useRef(false)
     const [isPlaying, setIsPlaying] = useState(false)
 
-    useEffect(() => { setFlushMode('end'); attachLifecycleFlush() }, [])
+    // Single-send model: we accumulate locally and send once on ended
+    useEffect(() => {
+        const handleEarlyExit = async () => {
+            if (sentRef.current) return
+            sentRef.current = true
+            const events = localEventsRef.current.slice()
+            localEventsRef.current = []
+            await sendSessionPayload({ trackId, events })
+        }
+        addEventListener('pagehide', handleEarlyExit)
+        addEventListener('beforeunload', handleEarlyExit)
+        return () => {
+            removeEventListener('pagehide', handleEarlyExit)
+            removeEventListener('beforeunload', handleEarlyExit)
+        }
+    }, [trackId])
 
     const sections = useMemo(() => buildUniformSections(durationMs, CHUNK_MS), [durationMs])
     const getSectionIndex = (ms: number) => {
@@ -53,59 +70,44 @@ export function ClientSession({ trackId, src, title }: { trackId: string; src: s
         // Try to start playback (uninterrupted) when metadata is ready
         const tryPlay = async () => { try { await el.play() } catch { } }
         el.addEventListener('loadeddata', tryPlay, { once: true })
+        const onEndedMain = async () => {
+            const events = localEventsRef.current.slice()
+            localEventsRef.current = []
+            if (!sentRef.current) {
+                sentRef.current = true
+                await sendSessionPayload({ trackId, events })
+            }
+        }
+        el.addEventListener('ended', onEndedMain)
         return () => {
             el.removeEventListener('loadedmetadata', onMeta)
             el.removeEventListener('timeupdate', onTimeMain)
             el.removeEventListener('play', onPlayMain)
             el.removeEventListener('pause', onPauseMain)
+            el.removeEventListener('ended', onEndedMain)
         }
     }, [])
 
-    useEffect(() => {
-        const el = analyzeRef.current
-        if (!el || !sections[idx]) return
-        const s = sections[idx]
-        el.currentTime = s.start_ms / 1000
-        void el.play()
-        const onTime = () => {
-            if (el.currentTime * 1000 >= s.end_ms) {
-                el.pause()
-                // emit single reaction for this section (last-write-wins; default NEUTRAL)
-                emitReactionForSection(idx)
-                // advance to next section after boundary
-                setIdx((i) => Math.min(i + 1, Math.max(0, sections.length - 1)))
-            }
-        }
-        el.addEventListener('timeupdate', onTime)
-        return () => el.removeEventListener('timeupdate', onTime)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [idx, sections.length])
+    // Removed analyzer loop; reactions are written immediately and overwrite previous ones for the section
 
     function recordReaction(reaction: -1 | 0 | 1) {
-        if (!sections[idx]) return
-        // last-write-wins: store reaction; emit at section end
-        setReactions((v) => ({ ...v, [idx]: reaction }))
-    }
-
-    const emittedRef = useRef<Record<number, boolean>>({})
-
-    function emitReactionForSection(sectionIndex: number) {
+        if (sections.length === 0) return
+        const sectionIndex = getSectionIndex(currentMs)
         const section = sections[sectionIndex]
         if (!section) return
-        if (emittedRef.current[sectionIndex]) return
         const { start_ms, end_ms } = section
-        const reaction = reactions[sectionIndex] ?? 0
         const eventName = reaction === 1 ? 'LIKE' : reaction === -1 ? 'DISLIKE' : 'NEUTRAL'
         const weight = reaction === 1 ? 1 : reaction === -1 ? -1 : 0
-        enqueue({
-            sessionId,
-            trackId,
-            type: 'session_reaction',
-            positionMs: Math.floor((start_ms + end_ms) / 2),
-            clientTs: Date.now(),
-            payload: { sectionIndex, startMs: start_ms, endMs: end_ms, reaction, event: eventName, weight },
-        } as any)
-        emittedRef.current[sectionIndex] = true
+        const midpoint = Math.floor((start_ms + end_ms) / 2)
+        // Overwrite: remove existing reaction for this section, then push the new one
+        const arr = localEventsRef.current
+        const lastIdx = [...arr].reverse().findIndex((e) => (e.type === 'LIKE' || e.type === 'DISLIKE' || e.type === 'NEUTRAL') && e.payload?.sectionIndex === sectionIndex)
+        if (lastIdx !== -1) {
+            const idxToReplace = arr.length - 1 - lastIdx
+            arr[idxToReplace] = { trackId, type: eventName, payload: { sectionIndex, startMs: start_ms, endMs: end_ms, reaction, event: eventName, weight, t: midpoint } }
+        } else {
+            arr.push({ trackId, type: eventName, payload: { sectionIndex, startMs: start_ms, endMs: end_ms, reaction, event: eventName, weight, t: midpoint } })
+        }
     }
 
     useEffect(() => {
@@ -131,28 +133,20 @@ export function ClientSession({ trackId, src, title }: { trackId: string; src: s
                             const toMs = Math.max(0, Math.min(durationMs || 0, ms))
                             const fromSectionIndex = getSectionIndex(fromMs)
                             const toSectionIndex = getSectionIndex(toMs)
-                            // ensure we emit a reaction for the section being exited (if not already)
-                            emitReactionForSection(fromSectionIndex)
                             if (toMs > fromMs) {
                                 // Skip forward: capture latency position
-                            enqueue({
-                                    sessionId,
+                                localEventsRef.current.push({
                                     trackId,
-                                type: 'session_skip',
-                                    positionMs: fromMs,
-                                    clientTs: Date.now(),
-                                    payload: { fromMs, toMs, deltaMs: toMs - fromMs, fromSectionIndex, toSectionIndex, event: 'SKIP', weight: -1 },
-                                } as any)
+                                    type: 'SKIP',
+                                    payload: { fromMs, toMs, deltaMs: toMs - fromMs, fromSectionIndex, toSectionIndex, event: 'SKIP', weight: -1, t: fromMs },
+                                })
                             } else if (toMs < fromMs) {
                                 // Replay/backward seek
-                                enqueue({
-                                    sessionId,
+                                localEventsRef.current.push({
                                     trackId,
-                                    type: 'session_replay',
-                                    positionMs: toMs,
-                                    clientTs: Date.now(),
-                                    payload: { fromMs, toMs, deltaMs: toMs - fromMs, fromSectionIndex, toSectionIndex, event: 'REPLAY', weight: 1 },
-                                } as any)
+                                    type: 'REPLAY',
+                                    payload: { fromMs, toMs, deltaMs: toMs - fromMs, fromSectionIndex, toSectionIndex, event: 'REPLAY', weight: 1, t: toMs },
+                                })
                             }
                             el.currentTime = Math.max(0, Math.min((durationMs / 1000) || 0, toMs / 1000))
                         }}
@@ -161,14 +155,9 @@ export function ClientSession({ trackId, src, title }: { trackId: string; src: s
                         isPlaying={isPlaying}
                         onTogglePlay={async () => { const el = mainRef.current; if (!el) return; if (el.paused) { try { await el.play() } catch { } } else { el.pause() } }}
                     />
-                    {/* Hidden players */}
+                    {/* Hidden player */}
                     <audio ref={mainRef} src={src} className="hidden" />
-                    <audio ref={analyzeRef} src={src} muted className="hidden" />
                 </div>
-                {/* Flush once the last section has been emitted */}
-                {idx === sections.length - 1 && (
-                    <button className="hidden" aria-hidden onFocusCapture={async () => { await flush(); setFlushMode('auto') }} />
-                )}
             </div>
         </div>
     )

@@ -12,7 +12,7 @@ export async function createTrackAction(formData: FormData) {
   const { data, error } = await supabaseServer
     .from('track')
     .insert({ title, artist, storage_path, duration_ms })
-    .select('track_id,title,created_at,storage_path')
+    .select('id,title,created_at,storage_path')
     .single()
   if (error) throw new Error(error.message)
   revalidatePath('/dashboard/tracks')
@@ -24,7 +24,7 @@ export async function deleteTrackAction(trackId: string) {
   const { data: t, error: selErr } = await supabaseServer
     .from('track')
     .select('storage_path')
-    .eq('track_id', trackId)
+    .eq('id', trackId)
     .maybeSingle()
   if (selErr) throw new Error(selErr.message)
 
@@ -59,7 +59,7 @@ export async function deleteTrackAction(trackId: string) {
 		if (remErr) throw new Error(`Storage delete failed: ${remErr.message}`)
 	}
 
-  const { error: delErr } = await supabaseServer.from('track').delete().eq('track_id', trackId)
+  const { error: delErr } = await supabaseServer.from('track').delete().eq('id', trackId)
   if (delErr) throw new Error(delErr.message)
   revalidatePath('/dashboard/tracks')
   return { ok: true }

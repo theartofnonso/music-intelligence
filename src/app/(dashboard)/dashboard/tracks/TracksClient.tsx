@@ -10,7 +10,7 @@ import { formatRelativeTime } from '@/lib/utils'
 import { TrackRowActions } from '@/components/dashboard/TrackRowActions'
 import { Progress } from '@/components/ui/progress'
 
-export type Track = { track_id: string; title: string | null; created_at?: string }
+export type Track = { id: string; title: string | null; created_at?: string }
 
 type Props = { initialTracks: Track[] }
 
@@ -70,10 +70,10 @@ export function TracksClient({ initialTracks }: Props) {
 			form.set('title', file.name)
 			// Store absolute public URL for direct playback
 			form.set('storage_path', pub.publicUrl)
-			const json = await createTrackAction(form) as { track_id: string; title: string | null; storage_path: string; created_at?: string }
-			console.log(`[upload][${reqId}] success`, { track_id: json.track_id })
+            const json = await createTrackAction(form) as { id: string; title: string | null; storage_path: string; created_at?: string }
+            console.log(`[upload][${reqId}] success`, { id: json.id })
 			setUploadProgress(100)
-			setTracks((prev) => [{ track_id: json.track_id, title: json.title ?? file.name, created_at: json.created_at }, ...prev])
+            setTracks((prev) => [{ id: json.id, title: json.title ?? file.name, created_at: json.created_at }, ...prev])
 			setFile(null)
 			if (fileInputRef.current) fileInputRef.current.value = ''
 			setMessage('Uploaded')
@@ -134,8 +134,8 @@ export function TracksClient({ initialTracks }: Props) {
 						{tracks.map((t) => {
 							const rel = formatRelativeTime(t.created_at)
 							return (
-								<li key={t.track_id} className="flex items-center justify-between gap-4 rounded-md px-2 py-2 transition-colors hover:bg-accent/40">
-									<a href={`/dashboard/tracks/${t.track_id}`} className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer">
+                                <li key={t.id} className="flex items-center justify-between gap-4 rounded-md px-2 py-2 transition-colors hover:bg-accent/40">
+                                    <a href={`/dashboard/tracks/${t.id}`} className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer">
 										<div className="grid size-10 place-items-center rounded-md bg-foreground/10">
 											<Music className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
 										</div>
@@ -144,7 +144,7 @@ export function TracksClient({ initialTracks }: Props) {
 											{rel && <p className="text-xs text-muted-foreground">{rel}</p>}
 										</div>
 									</a>
-                                <TrackRowActions trackId={t.track_id} onDeleted={(id) => setTracks((prev) => prev.filter((x) => x.track_id !== id))} />
+                                <TrackRowActions trackId={t.id} onDeleted={(id) => setTracks((prev) => prev.filter((x) => x.id !== id))} />
 								</li>
 							)
 						})}

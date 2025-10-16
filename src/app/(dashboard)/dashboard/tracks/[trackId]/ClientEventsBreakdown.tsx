@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import { Play, Pause } from 'lucide-react'
 
-type RawEvent = { type: string; positionMs: number; payload?: any }
+type RawEvent = { type: string; positionMs?: number; payload?: any }
 
 function fmtMs(ms: number) {
   const s = Math.max(0, Math.floor(ms / 1000))
@@ -34,11 +34,13 @@ export default function ClientEventsBreakdown({ src, events: initialEvents }: { 
         </div>
         <div className="divide-y text-xs">
           {events.map((e, i) => {
-            const t = fmtMs(e.positionMs)
+            const tsMs = e.positionMs ?? e.payload?.t ?? 0
+            const t = fmtMs(tsMs)
             let details = '—'
-            if (e.type === 'session_reaction') details = e.payload?.event ?? '—'
-            if (e.type === 'session_skip') details = `→ ${fmtMs(e.payload?.toMs ?? 0)}`
-            if (e.type === 'session_replay') details = `← ${fmtMs(e.payload?.toMs ?? 0)}`
+            // simplified types
+            if (e.type === 'LIKE' || e.type === 'DISLIKE' || e.type === 'NEUTRAL') details = e.payload?.event ?? e.type
+            if (e.type === 'SKIP') details = `→ ${fmtMs(e.payload?.toMs ?? 0)}`
+            if (e.type === 'REPLAY') details = `← ${fmtMs(e.payload?.toMs ?? 0)}`
             return (
               <div key={`ev-${i}`} className="grid grid-cols-4 items-center px-3 py-2">
                 <div>
@@ -51,7 +53,7 @@ export default function ClientEventsBreakdown({ src, events: initialEvents }: { 
                       if (!el) return
                       if (playingIndex === i && isPlaying) { try { el.pause() } catch {}; return }
                       if (stopTimerRef.current) clearTimeout(stopTimerRef.current)
-                      const startMs = Math.max(0, e.positionMs - 1000)
+                      const startMs = Math.max(0, tsMs - 1000)
                       const endMs = startMs + 3000
                       el.currentTime = startMs / 1000
                       void el.play()

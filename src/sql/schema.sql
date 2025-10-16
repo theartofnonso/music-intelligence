@@ -52,7 +52,7 @@ END $$;
 -- Tables
 -- =====================
 create table if not exists public.track (
-	track_id uuid primary key default gen_random_uuid(),
+	id uuid primary key default gen_random_uuid(),
 	title text,
 	artist text,
 	duration_ms int,
@@ -61,8 +61,8 @@ create table if not exists public.track (
 );
 
 create table if not exists public.session (
-	session_id uuid primary key default gen_random_uuid(),
-	track_id uuid not null references public.track(track_id) on delete cascade,
+	id uuid primary key default gen_random_uuid(),
+	track_id uuid not null references public.track(id) on delete cascade,
 	payload jsonb not null,
 	created_at timestamptz default now()
 );

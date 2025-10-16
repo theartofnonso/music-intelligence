@@ -1,12 +1,12 @@
 export type Section = { start: number; end: number } // ms
 
-export type ReviewEvent =
+export type SessionEvent =
   | { type: 'like'; t: number; sectionIdx: number }
   | { type: 'dislike'; t: number; sectionIdx: number }
   | { type: 'skip'; t: number; sectionIdx: number }      // from sectionIdx -> sectionIdx+1
   | { type: 'replay'; t: number; sectionIdx: number }     // from sectionIdx -> sectionIdx-1
 
-export const DEFAULT_WEIGHTS = {
+export const SESSION_WEIGHTS = {
   like:    { v: +1.0, a: +0.6 },
   dislike: { v: -1.0, a: +0.4 },
   skip:    { v: -0.8, a: -0.3 },
@@ -20,7 +20,7 @@ export function gaussianKernel(dtMs: number, sigmaMs = 2500): number {
 
 export function curvesFromEvents(
   sections: Section[],
-  events: ReviewEvent[],
+  events: SessionEvent[],
   durationMs: number,
   opts?: { sigmaMs?: number; fps?: number; bleedMs?: number; capBeforeClamp?: number }
 ) {
@@ -31,13 +31,13 @@ export function curvesFromEvents(
 
   const step = 1000 / fps
   const bins = Math.ceil(durationMs / step)
-  const V = new Array<number>(bins).fill(0)
-  const A = new Array<number>(bins).fill(0)
+  const valence = new Array<number>(bins).fill(0)
+  const arousal = new Array<number>(bins).fill(0)
 
   const K = (dt: number, s = sigmaMs) => gaussianKernel(dt, s)
 
   for (const e of events) {
-    const w = DEFAULT_WEIGHTS[e.type]
+    const w = SESSION_WEIGHTS[e.type]
     if (!w) continue
     const { v, a } = w
 
@@ -48,8 +48,8 @@ export function curvesFromEvents(
       for (let b = b0; b <= b1; b++) {
         const t = b * step
         const kw = K(t - e.t, sigmaMs)
-        V[b] += v * kw
-        A[b] += a * kw
+        valence[b] += v * kw
+        arousal[b] += a * kw
       }
       const prev = sections[e.sectionIdx - 1], next = sections[e.sectionIdx + 1]
       if (prev) {
@@ -58,7 +58,7 @@ export function curvesFromEvents(
         for (let b = p0; b <= p1; b++) {
           const t = b * step
           const kw = 0.3 * K(t - e.t, Math.min(bleedMs, sigmaMs))
-          V[b] += v * kw; A[b] += a * kw
+          valence[b] += v * kw; arousal[b] += a * kw
         }
       }
       if (next) {
@@ -67,7 +67,7 @@ export function curvesFromEvents(
         for (let b = n0; b <= n1; b++) {
           const t = b * step
           const kw = 0.3 * K(t - e.t, Math.min(bleedMs, sigmaMs))
-          V[b] += v * kw; A[b] += a * kw
+          valence[b] += v * kw; arousal[b] += a * kw
         }
       }
     }
@@ -79,7 +79,7 @@ export function curvesFromEvents(
       for (let b = b0; b <= b1; b++) {
         const t = b * step
         const kw = K(t - e.t, 2000)
-        V[b] += v * kw; A[b] += a * kw
+        valence[b] += v * kw; arousal[b] += a * kw
       }
       const next = sections[e.sectionIdx + 1]
       if (next) {
@@ -88,7 +88,7 @@ export function curvesFromEvents(
         for (let b = n0; b <= n1; b++) {
           const t = b * step
           const kw = 0.2 * K(t - e.t, Math.min(bleedMs, 1200))
-          V[b] += v * kw; A[b] += a * kw
+          valence[b] += v * kw; arousal[b] += a * kw
         }
       }
     }
@@ -100,7 +100,7 @@ export function curvesFromEvents(
       for (let b = b0; b <= b1; b++) {
         const t = b * step
         const kw = K(t - e.t, 2000)
-        V[b] += v * kw; A[b] += a * kw
+        valence[b] += v * kw; arousal[b] += a * kw
       }
       const prev = sections[e.sectionIdx - 1]
       if (prev) {
@@ -109,7 +109,7 @@ export function curvesFromEvents(
         for (let b = p0; b <= p1; b++) {
           const t = b * step
           const kw = 0.2 * K(t - e.t, Math.min(bleedMs, 1200))
-          V[b] += v * kw; A[b] += a * kw
+          valence[b] += v * kw; arousal[b] += a * kw
         }
       }
     }
@@ -122,15 +122,15 @@ export function curvesFromEvents(
     for (let i = 0; i < arr.length; i++) { y = alpha * arr[i] + (1 - alpha) * y; out[i] = y }
     return out
   }
-  const Vsm = ema(V), Asm = ema(A)
+  const Vsm = ema(valence), Asm = ema(arousal)
 
   // Cap before clamp
   const cappedV = Vsm.map(v => Math.max(-cap, Math.min(cap, v)))
 
   const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x))
   return {
-    V: cappedV.map(v => clamp(v, -1, 1)),
-    A: Asm.map(a => clamp(a, 0, 1)),
+    valence: cappedV.map(v => clamp(v, -1, 1)),
+    arousal: Asm.map(a => clamp(a, 0, 1)),
   }
 }
 
@@ -145,32 +145,38 @@ export function buildUniformSections(durationMs: number, chunkMs = 10_000): Sect
 }
 
 // Map stored backend events → ReviewEvent[] (ignores NEUTRAL)
-export type RawEvent = {
+export type RawSessionEvent = {
   type: string
-  positionMs: number
   payload?: any
 }
 
-export function mapRawEventsToReviewEvents(raw: RawEvent[]): ReviewEvent[] {
-  const out: ReviewEvent[] = []
+export function processSessionEvents(raw: RawSessionEvent[]): SessionEvent[] {
+  const out: SessionEvent[] = []
   for (const e of raw) {
-    if (e.type === 'session_reaction' || e.type === 'review_reaction') {
-      const label = e.payload?.event as string | undefined
+    // Simplified types only (no back-compat)
+    if (e.type === 'LIKE') {
       const sectionIdx = (e.payload?.sectionIndex ?? e.payload?.section_idx ?? -1) as number
-      const t = e.positionMs ?? e.payload?.t ?? 0
-      if (label === 'LIKE') out.push({ type: 'like', t, sectionIdx })
-      else if (label === 'DISLIKE') out.push({ type: 'dislike', t, sectionIdx })
-      // NEUTRAL ignored
+      const t = e.payload?.t ?? 0
+      out.push({ type: 'like', t, sectionIdx })
       continue
     }
-    if (e.type === 'session_skip' || e.type === 'review_skip') {
-      const fromMs = (e.payload?.fromMs ?? e.positionMs ?? 0) as number
+    if (e.type === 'DISLIKE') {
+      const sectionIdx = (e.payload?.sectionIndex ?? e.payload?.sectionIndex ?? -1) as number
+      const t = e.payload?.t ?? 0
+      out.push({ type: 'dislike', t, sectionIdx })
+      continue
+    }
+    if (e.type === 'NEUTRAL') {
+      continue
+    }
+    if (e.type === 'SKIP') {
+      const fromMs = (e.payload?.fromMs ?? e.payload?.t ?? 0) as number
       const sectionIdx = (e.payload?.fromSectionIndex ?? e.payload?.sectionIndex ?? -1) as number
       out.push({ type: 'skip', t: fromMs, sectionIdx })
       continue
     }
-    if (e.type === 'session_replay' || e.type === 'review_replay') {
-      const toMs = (e.payload?.toMs ?? e.positionMs ?? 0) as number
+    if (e.type === 'REPLAY') {
+      const toMs = (e.payload?.toMs ?? e.payload?.t ?? 0) as number
       const sectionIdx = (e.payload?.fromSectionIndex ?? e.payload?.sectionIndex ?? -1) as number
       out.push({ type: 'replay', t: toMs, sectionIdx })
       continue
