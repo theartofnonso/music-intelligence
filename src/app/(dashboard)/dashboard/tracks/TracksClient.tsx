@@ -110,12 +110,12 @@ export function TracksClient({ initialTracks }: Props) {
 			</section>
 			<section className="space-y-2">
 				<h2 className="text-sm font-semibold">Tracks</h2>
-				<ul className="text-sm space-y-1">
+                <ul className="text-sm space-y-1">
 					{tracks.map((t) => {
 						const rel = formatRelativeTime(t.created_at)
-						return (
-							<li key={t.track_id} className="flex items-center justify-between gap-4">
-								<div className="flex items-center gap-3 min-w-0">
+                        return (
+                            <li key={t.track_id} className="flex items-center justify-between gap-4 rounded-md px-2 py-2 transition-colors hover:bg-accent/40">
+                                <a href={`/dashboard/tracks/${t.track_id}`} className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer">
 									<div className="grid size-10 place-items-center rounded-md bg-foreground/10">
 										<Music className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
 									</div>
@@ -123,7 +123,7 @@ export function TracksClient({ initialTracks }: Props) {
 										<p className="font-semibold truncate">{t.title ?? 'Untitled'}</p>
 										{rel && <p className="text-xs text-muted-foreground">{rel}</p>}
 									</div>
-								</div>
+                                </a>
 								<TrackRowActions trackId={t.track_id} />
 							</li>
 						)
