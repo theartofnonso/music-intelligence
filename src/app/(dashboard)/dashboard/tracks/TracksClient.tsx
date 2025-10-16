@@ -109,8 +109,13 @@ export function TracksClient({ initialTracks }: Props) {
 				{message && <p className="mt-2 text-xs text-muted-foreground">{message}</p>}
 			</section>
 			<section className="space-y-2">
-				<h2 className="text-sm font-semibold">Tracks</h2>
-                <ul className="text-sm space-y-1">
+				<h2 className="text-sm font-semibold">Files</h2>
+				{tracks.length === 0 ? (
+					<div className="p-6 text-center text-xs text-muted-foreground">
+						No files yet. Upload an audio file to get started.
+					</div>
+				) : (
+				<ul className="text-sm space-y-1">
 					{tracks.map((t) => {
 						const rel = formatRelativeTime(t.created_at)
                         return (
@@ -128,7 +133,8 @@ export function TracksClient({ initialTracks }: Props) {
 							</li>
 						)
 					})}
-				</ul>
+					</ul>
+				)}
 			</section>
 		</div>
 	)
