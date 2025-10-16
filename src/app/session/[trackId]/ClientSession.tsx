@@ -117,8 +117,6 @@ export function ClientSession({ trackId, src, title }: { trackId: string; src: s
         return () => removeEventListener('keydown', onKey)
     }, [])
 
-    const overallPct = durationMs > 0 ? Math.max(0, Math.min(100, (currentMs / durationMs) * 100)) : 0
-
     return (
         <div className="min-h-screen w-full flex items-center justify-center">
             <div className="space-y-3 w-full max-w-[560px] px-4">
