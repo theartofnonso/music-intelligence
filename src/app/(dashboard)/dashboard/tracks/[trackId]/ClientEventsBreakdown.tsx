@@ -13,13 +13,6 @@ function fmtMs(ms: number) {
   return `${m}:${r.toString().padStart(2, '0')}`
 }
 
-function fmtSignedSeconds(ms: number) {
-  const s = Math.round(ms / 1000)
-  const sign = s >= 0 ? '+' : '-'
-  const abs = Math.abs(s)
-  return `${sign}${abs}s`
-}
-
 export default function ClientEventsBreakdown({ src, events: initialEvents }: { src: string; events: RawEvent[] }) {
   const [events] = useState<RawEvent[]>(initialEvents)
   const audioRef = useRef<HTMLAudioElement | null>(null)

@@ -49,15 +49,24 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         fadeTimerRef.current = setInterval(() => {
             i += 1
             const ratio = Math.max(0, Math.min(1, 1 - i / steps))
-            try { el.volume = startVol * ratio } catch {}
+            try { el.volume = startVol * ratio } catch { }
             if (i >= steps) {
                 if (fadeTimerRef.current) { clearInterval(fadeTimerRef.current); fadeTimerRef.current = null }
-                try { el.pause() } catch {}
+                try { el.pause() } catch { }
                 // restore volume immediately for next resume
-                try { el.volume = startVol } catch {}
+                try { el.volume = startVol } catch { }
                 isFadingRef.current = false
             }
         }, 40)
+    }
+
+    // Segment boundary helpers (based on gateIntervalMs)
+    const getBoundaryIndex = (ms: number) => Math.max(0, Math.floor(ms / gateIntervalMs))
+    const getSegmentForMs = (ms: number) => {
+        const idx = getBoundaryIndex(ms)
+        const startMs = idx * gateIntervalMs
+        const endMs = Math.min((idx + 1) * gateIntervalMs, durationMs || Number.POSITIVE_INFINITY)
+        return { idx, startMs, endMs }
     }
 
     // Single-send model: we accumulate locally and send once on ended
@@ -157,9 +166,18 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
 
     const handleReaction = (reaction: -1 | 0 | 1) => {
         const eventName: ReactionType = reaction === 1 ? 'LIKE' : reaction === -1 ? 'DISLIKE' : 'NEUTRAL'
-        const weight = reaction === 1 ? 1 : reaction === -1 ? -1 : 0
         const t = Math.max(0, Math.min(durationMs || 0, currentMs))
-        localEventsRef.current.push({ type: eventName, payload: { reaction, event: eventName, weight, t } })
+        const seg = getSegmentForMs(t)
+        localEventsRef.current.push({
+            type: eventName,
+            payload: {
+                event: eventName,
+                t,
+                segmentIndex: seg.idx,
+                segmentStartMs: seg.startMs,
+                segmentEndMs: seg.endMs,
+            },
+        })
         // Update gating state
         lastReactionAtMsRef.current = t
         setNudgeVisible(false)
@@ -167,7 +185,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         setGateAtNextBoundary(false)
         if (nudgeTimerRef.current) { clearTimeout(nudgeTimerRef.current); nudgeTimerRef.current = null }
         // Resume playback if we paused for gating
-        if (mainRef.current && mainRef.current.paused) { try { void mainRef.current.play() } catch {} }
+        if (mainRef.current && mainRef.current.paused) { try { void mainRef.current.play() } catch { } }
     }
 
     useEffect(() => {
@@ -220,20 +238,36 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                             const toMs = Math.max(0, Math.min(durationMs || 0, ms))
                             if (toMs > fromMs) {
                                 // Skip forward: capture latency position
+                                const seg = getSegmentForMs(toMs)
                                 localEventsRef.current.push({
                                     type: 'SKIP',
-                                    payload: { fromMs, toMs, deltaMs: toMs - fromMs, event: 'SKIP', weight: -1, t: fromMs },
+                                    payload: {
+                                        toMs,
+                                        event: 'SKIP',
+                                        t: fromMs,
+                                        segmentIndex: seg.idx,
+                                        segmentStartMs: toMs,
+                                        segmentEndMs: seg.endMs,
+                                    },
                                 })
                             } else if (toMs < fromMs) {
                                 // Replay/backward seek
+                                const seg = getSegmentForMs(toMs)
                                 localEventsRef.current.push({
                                     type: 'REPLAY',
-                                    payload: { fromMs, toMs, deltaMs: toMs - fromMs, event: 'REPLAY', weight: 1, t: toMs },
+                                    payload: {
+                                        toMs,
+                                        event: 'REPLAY',
+                                        t: toMs,
+                                        segmentIndex: seg.idx,
+                                        segmentStartMs: toMs,
+                                        segmentEndMs: seg.endMs,
+                                    },
                                 })
                             }
                             el.currentTime = Math.max(0, Math.min((durationMs / 1000) || 0, toMs / 1000))
                             // Auto-play after seek even when nudge is visible
-                            try { void el.play() } catch {}
+                            try { void el.play() } catch { }
                         }}
                         onDislike={() => handleReaction(-1)}
                         onLike={() => handleReaction(1)}
