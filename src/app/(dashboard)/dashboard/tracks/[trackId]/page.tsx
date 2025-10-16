@@ -7,21 +7,20 @@ import ClientEventsBreakdown from './ClientEventsBreakdown'
 import SimpleWavePlayer from '@/components/player/SimpleWavePlayer'
 
 async function fetchTrack(trackId: string) {
-	const { data, error } = await supabaseServer
-		.from('track')
-		.select('track_id,title,artist,storage_path')
-		.eq('track_id', trackId)
-		.maybeSingle()
-	if (error) throw error
-	return data
+    const { data, error } = await supabaseServer
+        .from('track')
+        .select('track_id,title,artist,storage_path')
+        .eq('track_id', trackId)
+        .maybeSingle()
+    if (error) throw error
+    return data
 }
 
 export default async function TrackDetail({ params }: { params: Promise<{ trackId: string }> }) {
-	const { trackId } = await params
-	const track = await fetchTrack(trackId)
-    console.log(track)
-	if (!track) return <div className="p-6">Track not found.</div>
-	const zeroRails = Array.from({ length: 60 }).map((_, i) => ({ second: i, valence: 0, arousal: 0 }))
+    const { trackId } = await params
+    const track = await fetchTrack(trackId)
+
+    const zeroRails = Array.from({ length: 60 }).map((_, i) => ({ second: i, valence: 0, arousal: 0 }))
 
     // Attempt to compute curves client-side from raw events (fallback to aggregates/zeros if unavailable)
     let computed: { V: number[]; A: number[] } | null = null
@@ -29,33 +28,30 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
     let serverEvents: any[] = []
     try {
         const { data, error } = await supabaseServer
-            .from('event')
-            .select('event_type, position_ms, payload')
+            .from('session')
+            .select('payload, created_at')
             .eq('track_id', trackId)
-            .order('position_ms', { ascending: true })
+            .order('created_at', { ascending: true })
             .limit(2000)
         if (error) throw error
-        const rows = (data ?? []) as Array<{ event_type: string; position_ms: number; payload: any }>
+        const rows = (data ?? []) as Array<{ payload: any; created_at: string }>
         const flat: any[] = []
         for (const r of rows) {
-            if (r.event_type === 'arcade_session' && Array.isArray(r.payload?.events)) {
-                for (const e of r.payload.events) {
-                    flat.push({ type: e.type, positionMs: e.positionMs ?? r.position_ms, payload: e.payload ?? null })
-                }
-            } else {
-                flat.push({ type: r.event_type, positionMs: r.position_ms, payload: r.payload ?? null })
+            const events = Array.isArray(r.payload?.events) ? r.payload.events : []
+            for (const e of events) {
+                flat.push({ type: e.type, positionMs: e.positionMs ?? 0, payload: e.payload ?? null })
             }
         }
         serverEvents = flat
         const reviewEvents = mapRawEventsToReviewEvents(serverEvents)
-        const durationMs = Math.max(...fp.map((b) => (b.second ?? 0))) * 1000 || 60_000
+        const durationMs = (serverEvents.length ? Math.max(...serverEvents.map((e: any) => e.positionMs ?? 0)) : 0) || 60_000
         const sections: Section[] = buildUniformSections(durationMs, 10_000)
         if (reviewEvents.length > 0) {
             computed = curvesFromEvents(sections, reviewEvents, durationMs, { sigmaMs: 2500, fps: 1, bleedMs: 1500 })
             binsSeconds = Array.from({ length: computed.V.length }).map((_, i) => i)
         }
-    } catch {}
-	return (
+    } catch { }
+    return (
         <div className="space-y-6">
             <div>
                 <a href="/dashboard/tracks" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:font-semibold">
@@ -67,33 +63,37 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
             <div className="flex items-center gap-4">
                 <div className="grid size-16 place-items-center rounded-lg bg-foreground/10" />
                 <div className="min-w-0">
-                    <h1 className="text-xl font-semibold truncate">{track.title ?? 'Track'}</h1>
+                    <h1 className="text-xl font-semibold truncate">{track?.title ?? 'Track'}</h1>
                     <p className="text-xs text-muted-foreground">Analysis overview</p>
                 </div>
             </div>
 
             {/* Player */}
-            <section>
-                {track.storage_path && <SimpleWavePlayer src={track.storage_path} />}
-            </section>
+			<section>
+				{track?.storage_path ? (
+					<SimpleWavePlayer src={track.storage_path} />
+				) : (
+					<div className="h-24 rounded-md border bg-foreground/5 opacity-50 grid place-items-center text-xs text-muted-foreground">
+						Audio unavailable
+					</div>
+				)}
+			</section>
 
             {/* Event breakdown */}
-            <section>
-                <ClientEventsBreakdown src={track.storage_path ?? ''} events={serverEvents} />
-            </section>
+			<section>
+				<ClientEventsBreakdown src={track?.storage_path ?? ''} events={serverEvents} />
+			</section>
 
             {/* Valence/Arousal Rail + Skip/Replay markers */}
             <section className="space-y-3">
                 <h2 className="text-sm font-semibold">Emotional curves</h2>
                 <TrackCurvesChart
-			data={(computed
-				? computed.V.map((v, i) => ({ second: i, valence: v, arousal: computed!.A[i] ?? 0 }))
-				: zeroRails
-				)}
+                    data={(computed
+                        ? computed.V.map((v, i) => ({ second: i, valence: v, arousal: computed!.A[i] ?? 0 }))
+                        : zeroRails
+                    )}
                 />
             </section>
-
-            
         </div>
-	)
+    )
 }

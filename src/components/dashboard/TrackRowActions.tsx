@@ -8,7 +8,7 @@ import { deleteTrackAction } from '@/app/(dashboard)/dashboard/tracks/actions'
 export function TrackRowActions({ trackId, onDeleted }: { trackId: string; onDeleted?: (trackId: string) => void }) {
 	const [copied, setCopied] = useState(false)
 	const [pending, startTransition] = useTransition()
-    const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/arcade/${trackId}` : `/arcade/${trackId}`
+    const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/session/${trackId}` : `/session/${trackId}`
 
 	async function copyLink() {
 		try {
@@ -30,7 +30,7 @@ export function TrackRowActions({ trackId, onDeleted }: { trackId: string; onDel
 
 	return (
         <div className="flex items-center gap-1.5">
-            <a href={`/arcade/${trackId}`} target="_blank" rel="noopener noreferrer">
+            <a href={`/session/${trackId}`} target="_blank" rel="noopener noreferrer">
 				<Button variant="outline" size="icon-sm" aria-label="Preview">
 					<ExternalLink className="h-4 w-4" />
 				</Button>

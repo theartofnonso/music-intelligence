@@ -1,7 +1,6 @@
 'use server'
 
 import { supabaseServer } from '@/lib/supabaseServer'
-import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 
 export async function createTrackAction(formData: FormData) {
@@ -29,28 +28,36 @@ export async function deleteTrackAction(trackId: string) {
     .maybeSingle()
   if (selErr) throw new Error(selErr.message)
 
-  if (t?.storage_path) {
-    try {
-      // Parse bucket and object path from public URL: /storage/v1/object/public/<bucket>/<objectPath>
-      const url = new URL(t.storage_path)
-      const parts = url.pathname.split('/')
-      const publicIdx = parts.findIndex((p) => p === 'public')
-      let bucket: string | null = null
-      let objectPath = ''
-      if (publicIdx >= 0) {
-        const after = parts.slice(publicIdx + 1) // [bucket, ...object]
-        bucket = after.shift() ?? null
-        objectPath = after.join('/')
-      }
-      if (bucket && objectPath) {
-        const storage = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-          process.env.SUPABASE_SERVICE_ROLE_KEY as string,
-        )
-        await storage.storage.from(bucket).remove([objectPath])
-      }
-    } catch {}
-  }
+	if (t?.storage_path) {
+		// Support both full public URLs and bucket-relative paths like "audio-public/dir/file.mp3"
+		let bucket: string | null = null
+		let objectPath: string | null = null
+		if (t.storage_path.startsWith('http')) {
+			const url = new URL(t.storage_path)
+			const parts = url.pathname.split('/')
+			const publicIdx = parts.findIndex((p) => p === 'public')
+			if (publicIdx >= 0) {
+				const after = parts.slice(publicIdx + 1)
+				// Decode each segment to match exact storage object path
+				const decoded = after.map((seg) => {
+					try { return decodeURIComponent(seg) } catch { return seg }
+				})
+				bucket = decoded.shift() ?? null
+				objectPath = decoded.join('/') || null
+			}
+		} else {
+			// Assume "bucket/path/to/object"
+			const [b, ...rest] = t.storage_path.split('/')
+			bucket = b || null
+			objectPath = rest.join('/') || null
+      console.log('objectPath', objectPath)
+		}
+		if (!bucket || !objectPath) {
+			throw new Error('Failed to resolve storage object path for deletion')
+		}
+		const { error: remErr } = await supabaseServer.storage.from(bucket).remove([objectPath])
+		if (remErr) throw new Error(`Storage delete failed: ${remErr.message}`)
+	}
 
   const { error: delErr } = await supabaseServer.from('track').delete().eq('track_id', trackId)
   if (delErr) throw new Error(delErr.message)

@@ -36,9 +36,9 @@ export default function ClientEventsBreakdown({ src, events: initialEvents }: { 
           {events.map((e, i) => {
             const t = fmtMs(e.positionMs)
             let details = '—'
-            if (e.type === 'arcade_reaction') details = e.payload?.event ?? '—'
-            if (e.type === 'arcade_skip') details = `→ ${fmtMs(e.payload?.toMs ?? 0)}`
-            if (e.type === 'arcade_replay') details = `← ${fmtMs(e.payload?.toMs ?? 0)}`
+            if (e.type === 'session_reaction') details = e.payload?.event ?? '—'
+            if (e.type === 'session_skip') details = `→ ${fmtMs(e.payload?.toMs ?? 0)}`
+            if (e.type === 'session_replay') details = `← ${fmtMs(e.payload?.toMs ?? 0)}`
             return (
               <div key={`ev-${i}`} className="grid grid-cols-4 items-center px-3 py-2">
                 <div>
@@ -70,7 +70,7 @@ export default function ClientEventsBreakdown({ src, events: initialEvents }: { 
                   </button>
                 </div>
                 <div>{t}</div>
-                <div>{e.type.replace('arcade_', '').toUpperCase()}</div>
+                <div>{e.type.replace('session_', '').toUpperCase()}</div>
                 <div>{details}</div>
               </div>
             )

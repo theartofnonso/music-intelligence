@@ -58,14 +58,17 @@ export function TracksClient({ initialTracks }: Props) {
 		const reqId = crypto.randomUUID()
 		console.log(`[upload][${reqId}] start`, { name: file.name, size: file.size, type: file.type })
 		try {
-			const path = `${crypto.randomUUID()}/${file.name}`
+			const bucket = 'audio-public'
+			const folder = 'uploads'
+			const path = `${folder}/${file.name}`
 			console.log(`[upload][${reqId}] storage.upload`, { bucket: 'audio-public', path })
 			const { error: upErr } = await supabaseBrowser.storage.from('audio-public').upload(path, file, { upsert: false })
 			if (upErr) throw upErr
-			const { data: pub } = supabaseBrowser.storage.from('audio-public').getPublicUrl(path)
+			const { data: pub } = supabaseBrowser.storage.from(bucket).getPublicUrl(path)
 			console.log(`[upload][${reqId}] got publicUrl`, { publicUrl: pub.publicUrl })
 			const form = new FormData()
 			form.set('title', file.name)
+			// Store absolute public URL for direct playback
 			form.set('storage_path', pub.publicUrl)
 			const json = await createTrackAction(form) as { track_id: string; title: string | null; storage_path: string; created_at?: string }
 			console.log(`[upload][${reqId}] success`, { track_id: json.track_id })

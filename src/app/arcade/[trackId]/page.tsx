@@ -1,5 +1,4 @@
 import { supabaseServer } from '@/lib/supabaseServer'
-import { ClientArcade } from './ClientArcade'
 
 async function fetchTrack(trackId: string) {
     const { data, error } = await supabaseServer
@@ -11,13 +10,13 @@ async function fetchTrack(trackId: string) {
     return data
 }
 
-export default async function ArcadePage({ params }: { params: Promise<{ trackId: string }> }) {
+export default async function SessionPage({ params }: { params: Promise<{ trackId: string }> }) {
     const { trackId } = await params
     const track = await fetchTrack(trackId)
     if (!track?.storage_path) return <div className="p-6">Track not found or missing URL.</div>
     return (
         <div className="max-w-2xl mx-auto p-6 space-y-6">
-            <ClientArcade trackId={track.track_id} src={track.storage_path} title={track.title ?? 'Track'} />
+            <ClientSession trackId={track.track_id} src={track.storage_path} title={track.title ?? 'Track'} />
         </div>
     )
 }

@@ -21,15 +21,11 @@ export function enqueue(evt: Omit<EventItem, 'seq'>) {
 export async function flush() {
     if (!buf.length) return
     const events = buf.splice(0, buf.length)
-    // Merge all events into a single JSON blob event to ensure delivery even if page unloads early
+    // Merge all events into one session payload; server expects { trackId, payload: { events } }
     const first = events[0]
     const merged = [{
         sessionId: first.sessionId,
         trackId: first.trackId,
-        type: 'arcade_session',
-        positionMs: first.positionMs ?? 0,
-        clientTs: Date.now(),
-        seq: first.seq,
         payload: { events },
     }]
     const body = JSON.stringify({ events: merged })

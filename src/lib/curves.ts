@@ -154,7 +154,7 @@ export type RawEvent = {
 export function mapRawEventsToReviewEvents(raw: RawEvent[]): ReviewEvent[] {
   const out: ReviewEvent[] = []
   for (const e of raw) {
-    if (e.type === 'arcade_reaction' || e.type === 'review_reaction') {
+    if (e.type === 'session_reaction' || e.type === 'review_reaction') {
       const label = e.payload?.event as string | undefined
       const sectionIdx = (e.payload?.sectionIndex ?? e.payload?.section_idx ?? -1) as number
       const t = e.positionMs ?? e.payload?.t ?? 0
@@ -163,13 +163,13 @@ export function mapRawEventsToReviewEvents(raw: RawEvent[]): ReviewEvent[] {
       // NEUTRAL ignored
       continue
     }
-    if (e.type === 'arcade_skip' || e.type === 'review_skip') {
+    if (e.type === 'session_skip' || e.type === 'review_skip') {
       const fromMs = (e.payload?.fromMs ?? e.positionMs ?? 0) as number
       const sectionIdx = (e.payload?.fromSectionIndex ?? e.payload?.sectionIndex ?? -1) as number
       out.push({ type: 'skip', t: fromMs, sectionIdx })
       continue
     }
-    if (e.type === 'arcade_replay' || e.type === 'review_replay') {
+    if (e.type === 'session_replay' || e.type === 'review_replay') {
       const toMs = (e.payload?.toMs ?? e.positionMs ?? 0) as number
       const sectionIdx = (e.payload?.fromSectionIndex ?? e.payload?.sectionIndex ?? -1) as number
       out.push({ type: 'replay', t: toMs, sectionIdx })

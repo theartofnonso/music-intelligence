@@ -17,7 +17,7 @@ function buildUniformSections(durationMs: number, chunkMs = CHUNK_MS) {
     return out
 }
 
-export function ClientArcade({ trackId, src, title }: { trackId: string; src: string; title: string }) {
+export function ClientSession({ trackId, src, title }: { trackId: string; src: string; title: string }) {
     // Main player: uninterrupted full-song playback
     const mainRef = useRef<HTMLAudioElement | null>(null)
     // Analyzer: muted, steps through sections to handle timeouts/advance
@@ -100,7 +100,7 @@ export function ClientArcade({ trackId, src, title }: { trackId: string; src: st
         enqueue({
             sessionId,
             trackId,
-            type: 'arcade_reaction',
+            type: 'session_reaction',
             positionMs: Math.floor((start_ms + end_ms) / 2),
             clientTs: Date.now(),
             payload: { sectionIndex, startMs: start_ms, endMs: end_ms, reaction, event: eventName, weight },
@@ -137,10 +137,10 @@ export function ClientArcade({ trackId, src, title }: { trackId: string; src: st
                             emitReactionForSection(fromSectionIndex)
                             if (toMs > fromMs) {
                                 // Skip forward: capture latency position
-                                enqueue({
+                            enqueue({
                                     sessionId,
                                     trackId,
-                                    type: 'arcade_skip',
+                                type: 'session_skip',
                                     positionMs: fromMs,
                                     clientTs: Date.now(),
                                     payload: { fromMs, toMs, deltaMs: toMs - fromMs, fromSectionIndex, toSectionIndex, event: 'SKIP', weight: -1 },
@@ -150,7 +150,7 @@ export function ClientArcade({ trackId, src, title }: { trackId: string; src: st
                                 enqueue({
                                     sessionId,
                                     trackId,
-                                    type: 'arcade_replay',
+                                    type: 'session_replay',
                                     positionMs: toMs,
                                     clientTs: Date.now(),
                                     payload: { fromMs, toMs, deltaMs: toMs - fromMs, fromSectionIndex, toSectionIndex, event: 'REPLAY', weight: 1 },
