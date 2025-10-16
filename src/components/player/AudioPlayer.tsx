@@ -2,6 +2,7 @@
 
 import React from "react"
 import { Pause, Play, ThumbsUp, ThumbsDown, RotateCcw, SkipForward } from "lucide-react";
+import { Button } from "@/components/ui/button"
 
 export default function AudioPlayerImproved({
   src,
@@ -106,44 +107,54 @@ export default function AudioPlayerImproved({
       </div>
 
       {/* Transport controls (bottom center) */}
-      <div className="mt-6 flex items-center justify-center gap-6">
-        <button
-          className="rounded-full p-3 text-zinc-800 transition hover:bg-zinc-200/70 active:scale-95 cursor-pointer"
+      <div className="mt-6 flex items-center justify-center gap-4">
+        <Button
+          variant="outline"
+          size="icon"
           aria-label="Replay section"
           onClick={handleReplaySection}
+          className="rounded-full"
         >
-          <RotateCcw className="h-7 w-7" />
-        </button>
-        <button
-          className="rounded-full p-3 text-zinc-800 transition hover:bg-zinc-200/70 active:scale-95 cursor-pointer"
-          aria-label="Previous"
+          <RotateCcw className="h-5 w-5" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          aria-label="Dislike"
           onClick={onDislike}
+          className="rounded-full"
         >
-          <ThumbsDown className="h-7 w-7" />
-        </button>
+          <ThumbsDown className="h-5 w-5" />
+        </Button>
 
-        <button
-          className="grid h-16 w-16 place-items-center rounded-full bg-zinc-900 text-zinc-50 shadow-sm transition hover:bg-zinc-800 active:scale-95 cursor-pointer"
+        <Button
+          variant="default"
+          size="icon-lg"
           aria-label={isPlaying ? "Pause" : "Play"}
           onClick={onTogglePlay}
+          className="rounded-full"
         >
-          {isPlaying ? <Pause className="h-7 w-7" /> : <Play className="h-7 w-7" />}
-        </button>
+          {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
+        </Button>
 
-        <button
-          className="rounded-full p-3 text-zinc-800 transition hover:bg-zinc-200/70 active:scale-95 cursor-pointer"
-          aria-label="Next"
+        <Button
+          variant="outline"
+          size="icon"
+          aria-label="Like"
           onClick={onLike}
+          className="rounded-full"
         >
-          <ThumbsUp className="h-7 w-7" />
-        </button>
-        <button
-          className="rounded-full p-3 text-zinc-800 transition hover:bg-zinc-200/70 active:scale-95 cursor-pointer"
+          <ThumbsUp className="h-5 w-5" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
           aria-label="Skip section"
           onClick={handleSkipSection}
+          className="rounded-full"
         >
-          <SkipForward className="h-7 w-7" />
-        </button>
+          <SkipForward className="h-5 w-5" />
+        </Button>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { Play, Pause } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 type RawEvent = { type: string; positionMs?: number; payload?: any }
 
@@ -44,8 +45,10 @@ export default function ClientEventsBreakdown({ src, events: initialEvents }: { 
             return (
               <div key={`ev-${i}`} className="grid grid-cols-4 items-center px-3 py-2">
                 <div>
-                  <button
-                    className={`rounded p-1 cursor-pointer ${playingIndex === i && isPlaying ? 'bg-accent/60' : 'hover:bg-accent/40'} disabled:opacity-50`}
+                  <Button
+                    variant="outline"
+                    size="icon-sm"
+                    className={`${playingIndex === i && isPlaying ? 'bg-accent/60' : ''}`}
                     aria-label={`${playingIndex === i && isPlaying ? 'Pause' : 'Play'} snippet at ${t}`}
                     disabled={isPlaying && playingIndex !== i}
                     onClick={() => {
@@ -69,7 +72,7 @@ export default function ClientEventsBreakdown({ src, events: initialEvents }: { 
                     ) : (
                       <Play className="h-4 w-4" />
                     )}
-                  </button>
+                  </Button>
                 </div>
                 <div>{t}</div>
                 <div>{e.type.replace('session_', '').toUpperCase()}</div>

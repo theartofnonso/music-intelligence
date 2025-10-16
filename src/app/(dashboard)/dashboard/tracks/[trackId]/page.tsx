@@ -1,6 +1,7 @@
 import { supabaseServer } from '@/lib/supabaseServer'
 // removed analytics RPC usage; curves are computed from raw session events
 import { ArrowLeft } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { curvesFromEvents, processSessionEvents, buildUniformSections, type Section } from '@/lib/curves'
 import TrackCurvesChart from '@/components/charts/TrackCurvesChart'
 import ClientEventsBreakdown from './ClientEventsBreakdown'
@@ -55,10 +56,12 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
     return (
         <div className="space-y-6">
             <div>
-                <a href="/dashboard/tracks" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:font-semibold">
-                    <ArrowLeft className="h-4 w-4" />
-                    <span>Back to tracks</span>
-                </a>
+                <Button asChild variant="outline" size="sm" className="gap-2">
+                    <a href="/dashboard/tracks" aria-label="Back to tracks">
+                        <ArrowLeft className="h-4 w-4" />
+                        <span>Back to tracks</span>
+                    </a>
+                </Button>
             </div>
             {/* Hero */}
             <div className="flex items-center gap-4">
