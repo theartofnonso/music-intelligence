@@ -26,16 +26,39 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
 
     // Gating and prompting state
     const strictGating = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_STRICT_GATING === '1'
-    const gateIntervalMs = 10_000 // approximate phrase/section boundary
+    const gateIntervalMs = 20_000 // approximate phrase/section boundary
     const nudgeTimeoutMs = 2_500 // escalate to hard pause after this delay if ignored
-    const quotaTarget = 6
-    const [reactionsCount, setReactionsCount] = useState(0)
     const [nudgeVisible, setNudgeVisible] = useState(false)
     const [gateActive, setGateActive] = useState(false)
     const [gateAtNextBoundary, setGateAtNextBoundary] = useState(false)
     const lastPromptBoundaryRef = useRef<number>(-1)
     const lastReactionAtMsRef = useRef<number>(0)
     const nudgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const fadeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    const isFadingRef = useRef(false)
+
+    const fadeOutAndPause = (durMs = 400) => {
+        const el = mainRef.current
+        if (!el) return
+        if (isFadingRef.current) return
+        isFadingRef.current = true
+        const startVol = Math.max(0, Math.min(1, el.volume || 1))
+        const steps = Math.max(1, Math.floor(durMs / 40))
+        let i = 0
+        if (fadeTimerRef.current) { clearInterval(fadeTimerRef.current); fadeTimerRef.current = null }
+        fadeTimerRef.current = setInterval(() => {
+            i += 1
+            const ratio = Math.max(0, Math.min(1, 1 - i / steps))
+            try { el.volume = startVol * ratio } catch {}
+            if (i >= steps) {
+                if (fadeTimerRef.current) { clearInterval(fadeTimerRef.current); fadeTimerRef.current = null }
+                try { el.pause() } catch {}
+                // restore volume immediately for next resume
+                try { el.volume = startVol } catch {}
+                isFadingRef.current = false
+            }
+        }, 40)
+    }
 
     // Single-send model: we accumulate locally and send once on ended
     useEffect(() => {
@@ -57,7 +80,16 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     useEffect(() => {
         const el = mainRef.current
         if (!el) return
-        const onMeta = () => setDurationMs(Math.floor((el.duration || 0) * 1000))
+        const onMeta = () => {
+            const ms = Math.floor((el.duration || 0) * 1000)
+            setDurationMs(ms)
+            // Ensure the first nudge occurs after the first gate interval (not immediately)
+            lastPromptBoundaryRef.current = 0
+            if (nudgeTimerRef.current) { clearTimeout(nudgeTimerRef.current); nudgeTimerRef.current = null }
+            setNudgeVisible(false)
+            setGateActive(false)
+            setGateAtNextBoundary(false)
+        }
         const onTimeMain = () => setCurrentMs(Math.floor((el.currentTime || 0) * 1000))
         const onPlayMain = () => setIsPlaying(true)
         const onPauseMain = () => setIsPlaying(false)
@@ -86,10 +118,16 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         }
     }, [])
 
+    // Cleanup timers on unmount
+    useEffect(() => {
+        return () => {
+            if (nudgeTimerRef.current) { clearTimeout(nudgeTimerRef.current); nudgeTimerRef.current = null }
+        }
+    }, [])
+
     // Boundary-based soft nudge and hard gate
     useEffect(() => {
         if (!durationMs || durationMs <= 0) return
-        if (reactionsCount >= quotaTarget) return
         const boundaryIndex = Math.floor(currentMs / gateIntervalMs)
         if (boundaryIndex !== lastPromptBoundaryRef.current) {
             lastPromptBoundaryRef.current = boundaryIndex
@@ -97,7 +135,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
             if (strictGating) {
                 setNudgeVisible(true)
                 setGateActive(true)
-                try { mainRef.current?.pause() } catch {}
+                fadeOutAndPause(400)
                 return
             }
             // Soft nudge first
@@ -113,9 +151,9 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         if (gateAtNextBoundary && nudgeVisible) {
             setGateActive(true)
             setGateAtNextBoundary(false)
-            try { mainRef.current?.pause() } catch {}
+            fadeOutAndPause(400)
         }
-    }, [currentMs, durationMs, strictGating, reactionsCount])
+    }, [currentMs, durationMs, strictGating])
 
     const handleReaction = (reaction: -1 | 0 | 1) => {
         const eventName: ReactionType = reaction === 1 ? 'LIKE' : reaction === -1 ? 'DISLIKE' : 'NEUTRAL'
@@ -124,7 +162,6 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         localEventsRef.current.push({ type: eventName, payload: { reaction, event: eventName, weight, t } })
         // Update gating state
         lastReactionAtMsRef.current = t
-        setReactionsCount((c) => c + 1)
         setNudgeVisible(false)
         setGateActive(false)
         setGateAtNextBoundary(false)
@@ -146,24 +183,24 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     return (
         <div className="min-h-screen w-full flex items-center justify-center">
             <div className="space-y-3 w-full max-w-[560px] px-4">
-                {/* Reaction bar: shown for nudges or active gate until quota is met */}
-                {(nudgeVisible || gateActive) && reactionsCount < quotaTarget && (
+                {/* Reaction bar: shown for nudges or active gate */}
+                {(nudgeVisible || gateActive) && (
                     <div className="mb-3 rounded-md border bg-background p-3">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                            <p className="text-xs text-muted-foreground">Share a quick reaction ({reactionsCount}/{quotaTarget})</p>
+                            <p className="text-xs text-muted-foreground">Share a quick reaction</p>
                             <div className="flex w-full gap-2 sm:w-auto">
                                 <button
-                                    className="flex-1 rounded-md border px-3 py-2 text-xs hover:bg-accent sm:flex-none"
+                                    className="flex-1 rounded-md border px-3 py-2 text-xs hover:bg-accent sm:flex-none cursor-pointer"
                                     onClick={() => handleReaction(-1)}
                                     aria-label="Dislike"
                                 >Dislike</button>
                                 <button
-                                    className="flex-1 rounded-md border px-3 py-2 text-xs hover:bg-accent sm:flex-none"
+                                    className="flex-1 rounded-md border px-3 py-2 text-xs hover:bg-accent sm:flex-none cursor-pointer"
                                     onClick={() => handleReaction(0)}
                                     aria-label="Neutral"
                                 >Neutral</button>
                                 <button
-                                    className="flex-1 rounded-md border px-3 py-2 text-xs hover:bg-accent sm:flex-none"
+                                    className="flex-1 rounded-md border px-3 py-2 text-xs hover:bg-accent sm:flex-none cursor-pointer"
                                     onClick={() => handleReaction(1)}
                                     aria-label="Like"
                                 >Like</button>
@@ -176,17 +213,11 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                         src={src}
                         currentMs={currentMs}
                         durationMs={durationMs}
+                        disabledControls={nudgeVisible || gateActive}
                         onSeek={(ms) => {
                             const el = mainRef.current; if (!el) return;
                             const fromMs = currentMs
                             const toMs = Math.max(0, Math.min(durationMs || 0, ms))
-                            // Gate skipping forward when a reaction is required (nudge or gate)
-                            if (toMs > fromMs && (reactionsCount < quotaTarget) && (nudgeVisible || gateActive || strictGating)) {
-                                // Highlight the bar by briefly re-showing it
-                                setNudgeVisible(true)
-                                setGateActive(true)
-                                return
-                            }
                             if (toMs > fromMs) {
                                 // Skip forward: capture latency position
                                 localEventsRef.current.push({
@@ -201,11 +232,20 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                                 })
                             }
                             el.currentTime = Math.max(0, Math.min((durationMs / 1000) || 0, toMs / 1000))
+                            // Auto-play after seek even when nudge is visible
+                            try { void el.play() } catch {}
                         }}
                         onDislike={() => handleReaction(-1)}
                         onLike={() => handleReaction(1)}
                         isPlaying={isPlaying}
-                        onTogglePlay={async () => { const el = mainRef.current; if (!el) return; if (el.paused) { try { await el.play() } catch { } } else { el.pause() } }}
+                        onTogglePlay={async () => {
+                            const el = mainRef.current; if (!el) return;
+                            // Prevent resuming playback while gating is active
+                            if (el.paused && (gateActive || (strictGating && nudgeVisible))) {
+                                setNudgeVisible(true); setGateActive(true); return;
+                            }
+                            if (el.paused) { try { await el.play() } catch { } } else { el.pause() }
+                        }}
                     />
                     {/* Hidden player */}
                     <audio ref={mainRef} src={src} className="hidden" />

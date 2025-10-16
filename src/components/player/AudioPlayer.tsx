@@ -13,6 +13,7 @@ export default function AudioPlayerImproved({
   onDislike,
   onLike,
   onSeek,
+  disabledControls = false,
 }: {
   src?: string;
   currentMs?: number;
@@ -22,11 +23,14 @@ export default function AudioPlayerImproved({
   onDislike?: () => void;
   onLike?: () => void;
   onSeek?: (ms: number) => void;
+  disabledControls?: boolean;
 }) {
 
   const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 
   const CHUNK_MS = 10_000;
+  // Assumption: step size changed per requirement to 5 seconds (5_000 ms)
+  const STEP_MS = 5_000;
 
   const formatMs = (ms: number) => {
     const total = Math.max(0, Math.floor(ms / 1000));
@@ -36,14 +40,17 @@ export default function AudioPlayerImproved({
   };
   const handleReplaySection = () => {
     if (!onSeek || durationMs <= 0) return;
+    // Prevent when controls are disabled
+    if (disabledControls) return;
     flashPressed('replay');
-    const toMs = Math.max(0, (currentMs || 0) - CHUNK_MS);
+    const toMs = Math.max(0, (currentMs || 0) - STEP_MS);
     onSeek(toMs);
   };
   const handleSkipSection = () => {
     if (!onSeek || durationMs <= 0) return;
+    if (disabledControls) return;
     flashPressed('skip');
-    const toMs = Math.min(durationMs, (currentMs || 0) + CHUNK_MS);
+    const toMs = Math.min(durationMs, (currentMs || 0) + STEP_MS);
     onSeek(toMs);
   };
 
@@ -103,6 +110,9 @@ export default function AudioPlayerImproved({
       {/* Waveform (Wavesurfer.js) */}
       <div className="relative w-full select-none">
         <div ref={waveRef} className="h-24 w-full" />
+        {disabledControls && (
+          <div className="absolute inset-0 z-10 cursor-not-allowed" aria-hidden="true" />
+        )}
       </div>
 
       {/* Time readout */}
@@ -122,6 +132,7 @@ export default function AudioPlayerImproved({
           onClick={handleReplaySection}
           aria-pressed={pressed.replay}
           className={`rounded-full active:scale-95 ${pressed.replay ? 'bg-red-500 text-white' : ''}`}
+          disabled={disabledControls}
         >
           <RotateCcw className="h-5 w-5" />
         </Button>
@@ -132,6 +143,7 @@ export default function AudioPlayerImproved({
           onClick={() => { flashPressed('dislike'); onDislike?.(); }}
           aria-pressed={pressed.dislike}
           className={`rounded-full active:scale-95 ${pressed.dislike ? 'bg-red-500 text-white' : ''}`}
+          disabled={disabledControls}
         >
           <ThumbsDown className="h-5 w-5" />
         </Button>
@@ -142,6 +154,7 @@ export default function AudioPlayerImproved({
           aria-label={isPlaying ? "Pause" : "Play"}
           onClick={onTogglePlay}
           className="rounded-full active:scale-95"
+          disabled={disabledControls}
         >
           {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
         </Button>
@@ -153,6 +166,7 @@ export default function AudioPlayerImproved({
           onClick={() => { flashPressed('like'); onLike?.(); }}
           aria-pressed={pressed.like}
           className={`rounded-full active:scale-95 ${pressed.like ? 'bg-emerald-500 text-white' : ''}`}
+          disabled={disabledControls}
         >
           <ThumbsUp className="h-5 w-5" />
         </Button>
@@ -163,6 +177,7 @@ export default function AudioPlayerImproved({
           onClick={handleSkipSection}
           aria-pressed={pressed.skip}
           className={`rounded-full active:scale-95 ${pressed.skip ? 'bg-emerald-500 text-white' : ''}`}
+          disabled={disabledControls}
         >
           <SkipForward className="h-5 w-5" />
         </Button>
