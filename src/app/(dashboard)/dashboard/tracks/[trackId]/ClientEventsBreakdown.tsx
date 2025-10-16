@@ -37,7 +37,7 @@ export default function ClientEventsBreakdown({ trackId, src }: { trackId: strin
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">Event breakdown</h2>
+        <h2 className="text-sm font-semibold">Reaction Analysis</h2>
         {loading && <span className="text-xs text-muted-foreground">Loading…</span>}
       </div>
       <div className="rounded border">

@@ -58,9 +58,9 @@ export function TracksClient({ initialTracks }: Props) {
 			})
 			console.log(`[upload][${reqId}] POST /api/tracks/create →`, res.status)
 			if (!res.ok) throw new Error('Failed to create track')
-			const json = (await res.json()) as { track_id: string }
-			console.log(`[upload][${reqId}] success`, { track_id: json.track_id })
-			setTracks((prev) => [{ track_id: json.track_id, title: file.name }, ...prev])
+            const json = (await res.json()) as { track_id: string; title: string | null; artist?: string | null; storage_path: string; created_at?: string }
+            console.log(`[upload][${reqId}] success`, { track_id: json.track_id })
+            setTracks((prev) => [{ track_id: json.track_id, title: json.title ?? file.name, created_at: json.created_at }, ...prev])
 			setFile(null)
 			if (fileInputRef.current) fileInputRef.current.value = ''
 			setMessage('Uploaded')

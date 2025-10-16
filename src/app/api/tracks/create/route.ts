@@ -27,7 +27,7 @@ export async function POST(req: Request) {
 		const { data, error } = await supabase
 			.from('track')
 			.insert({ title, artist, storage_path, duration_ms: duration_ms ?? null })
-			.select('track_id')
+			.select('track_id,title,artist,storage_path,created_at')
 			.single()
 		if (error) {
 			console.error(`[tracks/create][${reqId}] insert error`, { message: error.message })
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
 		}
 		const tookMs = Date.now() - startedAt
 		console.log(`[tracks/create][${reqId}] success`, { track_id: data.track_id, tookMs })
-		return Response.json({ track_id: data.track_id })
+		return Response.json(data)
 	} catch (err) {
 		console.error(`[tracks/create][${reqId}] unhandled`, err)
 		return new Response('Internal Server Error', { status: 500 })
