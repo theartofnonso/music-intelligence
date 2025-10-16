@@ -117,7 +117,7 @@ export function ClientArcade({ trackId, src, title }: { trackId: string; src: st
     return (
         <div className="min-h-screen w-full flex items-center justify-center">
             <div className="space-y-3 w-full max-w-[560px] px-4">
-                <div className="rounded bg-accent/30 p-4 text-center">
+                <div className="rounded p-4 text-center">
                     <AudioPlayer
                         src={src}
                         currentMs={currentMs}
