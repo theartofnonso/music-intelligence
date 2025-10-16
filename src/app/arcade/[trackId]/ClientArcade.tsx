@@ -25,11 +25,10 @@ export function ClientArcade({ trackId, src, title }: { trackId: string; src: st
     const [durationMs, setDurationMs] = useState<number>(0)
     const [currentMs, setCurrentMs] = useState<number>(0)
     const [idx, setIdx] = useState(0)
-    const [voted, setVoted] = useState<Record<number, -1 | 0 | 1>>({})
+    const [reactions, setReactions] = useState<Record<number, -1 | 0 | 1>>({})
     const sessionId = getOrCreateSessionId()
 
     const [isPlaying, setIsPlaying] = useState(false)
-
 
     useEffect(() => attachLifecycleFlush(), [])
 
@@ -71,8 +70,8 @@ export function ClientArcade({ trackId, src, title }: { trackId: string; src: st
         const onTime = () => {
             if (el.currentTime * 1000 >= s.end_ms) {
                 el.pause()
-                // if no explicit vote, record neutral (0)
-                if (voted[idx] === undefined) recordVoteOnce(0)
+                // emit single reaction for this section (last-write-wins; default NEUTRAL)
+                emitReactionForSection(idx)
                 // advance to next section after boundary
                 setIdx((i) => Math.min(i + 1, Math.max(0, sections.length - 1)))
             }
@@ -82,33 +81,33 @@ export function ClientArcade({ trackId, src, title }: { trackId: string; src: st
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [idx, sections.length])
 
-    function recordVoteOnce(reaction: -1 | 0 | 1) {
+    function recordReaction(reaction: -1 | 0 | 1) {
         if (!sections[idx]) return
-        // do not advance or pause; just capture once
-        if (voted[idx] !== undefined) return
-        const { start_ms, end_ms } = sections[idx]
-        setVoted((v) => ({ ...v, [idx]: reaction }))
+        // last-write-wins: store reaction; emit at section end
+        setReactions((v) => ({ ...v, [idx]: reaction }))
+    }
+
+    function emitReactionForSection(sectionIndex: number) {
+        const section = sections[sectionIndex]
+        if (!section) return
+        const { start_ms, end_ms } = section
+        const reaction = reactions[sectionIndex] ?? 0
         const eventName = reaction === 1 ? 'LIKE' : reaction === -1 ? 'DISLIKE' : 'NEUTRAL'
         const weight = reaction === 1 ? 1 : reaction === -1 ? -1 : 0
         enqueue({
             sessionId,
             trackId,
-            type: 'arcade_swipe',
+            type: 'arcade_reaction',
             positionMs: Math.floor((start_ms + end_ms) / 2),
             clientTs: Date.now(),
-            payload: { sectionIndex: idx, startMs: start_ms, endMs: end_ms, swipe: reaction, event: eventName, weight },
+            payload: { sectionIndex, startMs: start_ms, endMs: end_ms, reaction, event: eventName, weight },
         } as any)
-    }
-
-    function submitVote(swipe: -1 | 0 | 1) {
-        recordVoteOnce(swipe)
-        // no advance here; allow audio to play to section end
     }
 
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'ArrowLeft') submitVote(-1)
-            if (e.key === 'ArrowRight') submitVote(1)
+            if (e.key === 'ArrowLeft') recordReaction(-1)
+            if (e.key === 'ArrowRight') recordReaction(1)
         }
         addEventListener('keydown', onKey)
         return () => removeEventListener('keydown', onKey)
@@ -153,8 +152,8 @@ export function ClientArcade({ trackId, src, title }: { trackId: string; src: st
                             }
                             el.currentTime = Math.max(0, Math.min((durationMs / 1000) || 0, toMs / 1000))
                         }}
-                        onDislike={() => submitVote(-1)}
-                        onLike={() => submitVote(1)}
+                        onDislike={() => recordReaction(-1)}
+                        onLike={() => recordReaction(1)}
                         isPlaying={isPlaying}
                         onTogglePlay={async () => { const el = mainRef.current; if (!el) return; if (el.paused) { try { await el.play() } catch { } } else { el.pause() } }}
                     />
