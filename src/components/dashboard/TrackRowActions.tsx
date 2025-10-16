@@ -10,7 +10,7 @@ export function TrackRowActions({ trackId, onDeleted }: { trackId: string; onDel
 	const [pending, startTransition] = useTransition()
     const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/session/${trackId}` : `/session/${trackId}`
 
-	async function copyLink() {
+	async function handleCopyLink() {
 		try {
 			await navigator.clipboard.writeText(shareUrl)
 			setCopied(true)
@@ -18,7 +18,7 @@ export function TrackRowActions({ trackId, onDeleted }: { trackId: string; onDel
 		} catch {}
 	}
 
-    function onDelete() {
+	function handleDelete() {
 		if (!confirm('Delete this track? This cannot be undone.')) return
 		startTransition(async () => {
             try {
@@ -35,10 +35,10 @@ export function TrackRowActions({ trackId, onDeleted }: { trackId: string; onDel
 					<ExternalLink className="h-4 w-4" />
 				</Button>
 			</a>
-			<Button variant="outline" size="icon-sm" onClick={copyLink} aria-label={copied ? 'Copied' : 'Copy link'}>
+			<Button variant="outline" size="icon-sm" onClick={handleCopyLink} aria-label={copied ? 'Copied' : 'Copy link'}>
 				{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
 			</Button>
-			<Button variant="destructive" size="icon-sm" onClick={onDelete} disabled={pending} aria-label="Delete track">
+			<Button variant="destructive" size="icon-sm" onClick={handleDelete} disabled={pending} aria-label="Delete track">
 				<Trash2 className="h-4 w-4" />
 			</Button>
 		</div>
