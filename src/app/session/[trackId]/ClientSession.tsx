@@ -35,8 +35,6 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     const nudgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const fadeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const isFadingRef = useRef(false)
-    const [selectedReaction, setSelectedReaction] = useState<number | null>(null)
-    const reactionFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     const fadeOutAndPause = (durMs = 400) => {
         const el = mainRef.current
@@ -133,7 +131,6 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     useEffect(() => {
         return () => {
             if (nudgeTimerRef.current) { clearTimeout(nudgeTimerRef.current); nudgeTimerRef.current = null }
-            if (reactionFlashTimerRef.current) { clearTimeout(reactionFlashTimerRef.current); reactionFlashTimerRef.current = null }
         }
     }, [])
 
@@ -168,10 +165,6 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     }, [currentMs, durationMs, strictGating])
 
     const handleReaction = (reaction: -1 | 0 | 1) => {
-        // Show temporary pressed state
-        setSelectedReaction(reaction)
-        if (reactionFlashTimerRef.current) { clearTimeout(reactionFlashTimerRef.current); reactionFlashTimerRef.current = null }
-        reactionFlashTimerRef.current = setTimeout(() => setSelectedReaction(null), 600)
         const eventName: ReactionType = reaction === 1 ? 'LIKE' : reaction === -1 ? 'DISLIKE' : 'NEUTRAL'
         const t = Math.max(0, Math.min(durationMs || 0, currentMs))
         const seg = getSegmentForMs(t)
@@ -194,12 +187,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         if (mainRef.current && mainRef.current.paused) { try { void mainRef.current.play() } catch { } }
     }
 
-    // Reset pressed state whenever the overlay opens/closes
-    useEffect(() => {
-        if (!nudgeVisible && !gateActive) {
-            setSelectedReaction(null)
-        }
-    }, [nudgeVisible, gateActive])
+    // no-op
 
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
@@ -221,26 +209,23 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
 							<div className="w-full max-w-md rounded-md border bg-background p-4 shadow-lg">
 								<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 									<p className="text-xs text-muted-foreground">Share a quick reaction</p>
-									<div className="flex w-full gap-2 sm:w-auto">
-										<button
-											className={`flex-1 rounded-md border px-3 py-2 text-xs sm:flex-none cursor-pointer hover:bg-accent ${selectedReaction === -1 ? 'bg-destructive text-white' : ''}`}
-											onClick={() => handleReaction(-1)}
-											aria-pressed={selectedReaction === -1}
-											aria-label="Dislike"
-										>Dislike</button>
-										<button
-											className={`flex-1 rounded-md border px-3 py-2 text-xs sm:flex-none cursor-pointer hover:bg-accent ${selectedReaction === 0 ? 'bg-secondary' : ''}`}
-											onClick={() => handleReaction(0)}
-											aria-pressed={selectedReaction === 0}
-											aria-label="Neutral"
-										>Neutral</button>
-										<button
-											className={`flex-1 rounded-md border px-3 py-2 text-xs sm:flex-none cursor-pointer hover:bg-accent ${selectedReaction === 1 ? 'bg-emerald-500 text-white' : ''}`}
-											onClick={() => handleReaction(1)}
-											aria-pressed={selectedReaction === 1}
-											aria-label="Like"
-										>Like</button>
-									</div>
+                            <div className="flex w-full gap-2 sm:w-auto">
+                                <button
+                                    className="flex-1 rounded-md border px-3 py-2 text-xs sm:flex-none cursor-pointer hover:bg-accent"
+                                    onClick={() => handleReaction(-1)}
+                                    aria-label="Dislike"
+                                >Dislike</button>
+                                <button
+                                    className="flex-1 rounded-md border px-3 py-2 text-xs sm:flex-none cursor-pointer hover:bg-accent"
+                                    onClick={() => handleReaction(0)}
+                                    aria-label="Neutral"
+                                >Neutral</button>
+                                <button
+                                    className="flex-1 rounded-md border px-3 py-2 text-xs sm:flex-none cursor-pointer hover:bg-accent"
+                                    onClick={() => handleReaction(1)}
+                                    aria-label="Like"
+                                >Like</button>
+                            </div>
 								</div>
 							</div>
 						</div>
