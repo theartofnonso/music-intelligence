@@ -18,16 +18,23 @@ const GLOBAL_EVENT = 'segment-wavecard:play'
 
 export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregates }: Props) {
   const waveRef = React.useRef<HTMLDivElement | null>(null)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const wsRef = React.useRef<any>(null)
+  type WaveHandle = {
+    load: (src: string) => void
+    on: (ev: string, cb: (...args: unknown[]) => void) => void
+    play: (start?: number, end?: number) => void
+    pause: () => void
+    setTime?: (sec: number) => void
+    unAll?: () => void
+    destroy?: () => void
+  }
+  const wsRef = React.useRef<WaveHandle | null>(null)
   const [isPlaying, setIsPlaying] = React.useState(false)
   const playEndRef = React.useRef<number | null>(null)
   const readyRef = React.useRef(false)
 
-  // Setup Wavesurfer
+  // Setup Wavesurfer (stable, only on src change)
   React.useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let ws: any
+    let ws: WaveHandle | null = null
     let cancelled = false
     async function setup() {
       if (!waveRef.current || !src) return
@@ -42,7 +49,7 @@ export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregat
         height: 48,
         responsive: true,
         interact: false,
-      })
+      }) as WaveHandle
       wsRef.current = ws
       ws.load(src)
       ws.on('ready', () => { readyRef.current = true })
@@ -51,7 +58,7 @@ export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregat
       ws.on('audioprocess', (t: number) => {
         const end = playEndRef.current
         if (typeof end === 'number' && t >= end - 0.01) {
-          try { ws.pause() } catch {}
+          try { ws?.pause() } catch {}
           setIsPlaying(false)
           playEndRef.current = null
         }
@@ -60,7 +67,7 @@ export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregat
     setup()
     return () => {
       cancelled = true
-      try { ws?.unAll?.(); ws?.destroy() } catch {}
+      try { ws?.unAll?.(); ws?.destroy?.() } catch {}
       wsRef.current = null
     }
   }, [src])

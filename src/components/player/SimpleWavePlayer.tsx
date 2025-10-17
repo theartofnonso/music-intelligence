@@ -5,14 +5,21 @@ import React from 'react'
 
 export default function SimpleWavePlayer({ src }: { src: string }) {
   const waveRef = React.useRef<HTMLDivElement | null>(null)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const wsRef = React.useRef<any>(null)
+  type WaveHandle = {
+    load: (s: string) => void
+    setTime?: (sec: number) => void
+    getDuration?: () => number
+    seekTo: (ratio: number) => void
+    play: () => void
+    pause: () => void
+    destroy?: () => void
+  }
+  const wsRef = React.useRef<WaveHandle | null>(null)
   const stopTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Setup Wavesurfer (waveform only)
+  // Setup Wavesurfer (waveform only), stable on src
   React.useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let ws: any
+    let ws: WaveHandle | null = null
     let cancelled = false
     async function setup() {
       if (!waveRef.current || !src) return
@@ -27,24 +34,21 @@ export default function SimpleWavePlayer({ src }: { src: string }) {
         height: 54,
         responsive: true,
         interact: true,
-      })
+      }) as WaveHandle
       wsRef.current = ws
       ws.load(src)
-      // react to external snippet play events to visualize position
       const onPlaySnippet = (ev: Event) => {
         const detail = (ev as CustomEvent<{ ms: number; durMs?: number }>).detail
         if (!detail || !wsRef.current) return
         const { ms, durMs = 3000 } = detail
         const seconds = Math.max(0, (ms || 0) / 1000)
-        try {
-          wsRef.current.setTime?.(seconds)
-        } catch {
+        try { wsRef.current.setTime?.(seconds) } catch {
           const dur = wsRef.current.getDuration?.() || 1
           wsRef.current.seekTo(Math.max(0, Math.min(1, seconds / dur)))
         }
         try { wsRef.current.play() } catch {}
         if (stopTimerRef.current) clearTimeout(stopTimerRef.current)
-        stopTimerRef.current = setTimeout(() => { try { wsRef.current.pause() } catch {} }, Math.max(200, durMs))
+        stopTimerRef.current = setTimeout(() => { try { wsRef.current?.pause() } catch {} }, Math.max(200, durMs))
       }
       window.addEventListener('play-snippet', onPlaySnippet as EventListener)
       ;(ws as unknown as { __onPlaySnippet?: EventListener }).__onPlaySnippet = onPlaySnippet as EventListener
@@ -53,10 +57,8 @@ export default function SimpleWavePlayer({ src }: { src: string }) {
     return () => {
       cancelled = true
       const handler = (ws as unknown as { __onPlaySnippet?: EventListener }).__onPlaySnippet
-      if (handler) {
-        window.removeEventListener('play-snippet', handler)
-      }
-      try { ws?.destroy() } catch {}
+      if (handler) window.removeEventListener('play-snippet', handler)
+      try { ws?.destroy?.() } catch {}
       wsRef.current = null
     }
   }, [src])

@@ -58,6 +58,10 @@ export default function AudioPlayerImproved({
     seekTo?: (ratio: number) => void
   }
   const wsRef = React.useRef<WaveHandle | null>(null);
+  const onSeekRef = React.useRef<typeof onSeek>(onSeek)
+  const durationRef = React.useRef<number>(durationMs)
+  React.useEffect(() => { onSeekRef.current = onSeek }, [onSeek])
+  React.useEffect(() => { durationRef.current = durationMs }, [durationMs])
   React.useEffect(() => {
     let ws: WaveHandle | null = null;
     let cancelled = false;
@@ -78,8 +82,10 @@ export default function AudioPlayerImproved({
       wsRef.current = ws;
       ws.load(src);
       ws.on('seek', (progress: number) => {
-        if (!onSeek || !durationMs) return;
-        onSeek(Math.round(durationMs * progress));
+        const d = durationRef.current
+        const cb = onSeekRef.current
+        if (!cb || !d) return
+        cb(Math.round(d * progress))
       });
     }
     setup();
@@ -88,7 +94,7 @@ export default function AudioPlayerImproved({
       try { ws?.destroy?.(); } catch { }
       wsRef.current = null;
     };
-  }, [src, durationMs, onSeek]);
+  }, [src]);
 
   // Sync external playback position to waveform cursor
   React.useEffect(() => {
