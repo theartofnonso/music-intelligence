@@ -72,6 +72,11 @@ export default function ClientEventsBreakdown({ src, events: initialEvents }: { 
             aggregates={{ lastReaction: seg.lastReaction, reactions: seg.reactionsCount, skips: seg.skipsInto, replays: seg.replaysInto }}
           />
         ))}
+        {segments.length === 0 && (
+          <div className="rounded-md border p-4 text-xs text-muted-foreground">
+            No analysis available.
+          </div>
+        )}
       </section>      
     </div>
   )
