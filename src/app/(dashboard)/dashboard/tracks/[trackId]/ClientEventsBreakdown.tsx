@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Play, Pause } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -13,104 +13,135 @@ function fmtMs(ms: number) {
   return `${m}:${r.toString().padStart(2, '0')}`
 }
 
+type SegmentInfo = {
+  idx: number
+  startMs: number
+  endMs: number
+  lastReaction: 'LIKE' | 'DISLIKE' | 'NEUTRAL' | null
+  reactionsCount: number
+  skipsInto: number
+  replaysInto: number
+}
+
 export default function ClientEventsBreakdown({ src, events: initialEvents }: { src: string; events: RawEvent[] }) {
   const [events] = useState<RawEvent[]>(initialEvents)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const [playingIndex, setPlayingIndex] = useState<number | null>(null)
+  const [playingKey, setPlayingKey] = useState<string | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
 
+  const segments: SegmentInfo[] = useMemo(() => {
+    const map = new Map<number, SegmentInfo>()
+    for (const e of events) {
+      const idx = (e.payload?.segmentIndex ?? -1) as number
+      const startMs = (e.payload?.segmentStartMs ?? -1) as number
+      const endMs = (e.payload?.segmentEndMs ?? -1) as number
+      if (idx < 0 || startMs < 0 || endMs < 0) continue
+      if (!map.has(idx)) {
+        map.set(idx, { idx, startMs, endMs, lastReaction: null, reactionsCount: 0, skipsInto: 0, replaysInto: 0 })
+      }
+      const seg = map.get(idx)!
+      if (e.type === 'LIKE' || e.type === 'DISLIKE' || e.type === 'NEUTRAL') {
+        seg.reactionsCount += 1
+        // Use latest by time 't' as lastReaction
+        const prevT = (events.findLast?.((x: any) => (x.payload?.segmentIndex ?? -1) === idx && (x.type === 'LIKE' || x.type === 'DISLIKE' || x.type === 'NEUTRAL'))?.payload?.t) ?? seg.startMs
+        if (typeof e.payload?.t === 'number' && e.payload.t >= prevT) seg.lastReaction = e.type as any
+      }
+      if (e.type === 'SKIP') seg.skipsInto += 1
+      if (e.type === 'REPLAY') seg.replaysInto += 1
+    }
+    return Array.from(map.values()).sort((a, b) => a.idx - b.idx)
+  }, [events])
+
+  const onPreview = (startMs: number, endMs: number, key: string) => {
+    const el = audioRef.current
+    if (!el) return
+    if (stopTimerRef.current) { clearTimeout(stopTimerRef.current); stopTimerRef.current = null }
+    try { el.pause() } catch { }
+    el.currentTime = Math.max(0, startMs / 1000)
+    void el.play()
+    setPlayingKey(key)
+    setIsPlaying(true)
+    const dur = Math.max(600, Math.min(4000, (endMs - startMs) || 2000))
+    stopTimerRef.current = setTimeout(() => { try { el.pause() } catch { } }, dur)
+    window.dispatchEvent(new CustomEvent('play-snippet', { detail: { ms: startMs, durMs: dur } }))
+  }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold">Reaction Analysis</h2>
       </div>
-      <div className="rounded border">
+
+      {/* Segment timeline */}
+      <section className="rounded border p-3">
+        <h3 className="mb-2 text-xs font-medium text-muted-foreground">Timeline</h3>
         <div className="w-full overflow-x-auto">
-          <div className="min-w-[520px]">
-            <div className="grid grid-cols-4 border-b px-3 py-2 text-xs font-semibold">
-              <div>Action</div>
-              <div>Time</div>
-              <div>Event</div>
-              <div>Details</div>
+          <div className="flex min-w-[560px] gap-2">
+            {segments.map((seg) => {
+              const color = seg.lastReaction === 'LIKE' ? 'bg-emerald-500' : seg.lastReaction === 'DISLIKE' ? 'bg-destructive' : seg.lastReaction === 'NEUTRAL' ? 'bg-secondary' : 'bg-muted'
+              const key = `seg-${seg.idx}`
+              return (
+                <button
+                  key={key}
+                  className={`flex min-w-[88px] flex-col items-start justify-center rounded-md border px-2 py-2 text-left ${color} ${seg.lastReaction ? 'text-white' : ''}`}
+                  onClick={() => onPreview(seg.startMs, seg.endMs, key)}
+                  aria-label={`Preview segment ${seg.idx + 1}`}
+                >
+                  <span className="text-[10px] opacity-90">Seg {seg.idx + 1}</span>
+                  <span className="text-[11px] font-medium">{fmtMs(seg.startMs)}–{fmtMs(seg.endMs)}</span>
+                  <span className="mt-1 text-[10px] opacity-90">{seg.lastReaction ?? 'No reaction'}</span>
+                </button>
+              )
+            })}
+            {segments.length === 0 && (
+              <div className="text-xs text-muted-foreground">No segments yet.</div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Segment summary table */}
+      <section className="rounded border p-3">
+        <h3 className="mb-2 text-xs font-medium text-muted-foreground">Summary</h3>
+        <div className="w-full overflow-x-auto">
+          <div className="min-w-[560px]">
+            <div className="grid grid-cols-5 border-b px-3 py-2 text-xs font-semibold">
+              <div>Segment</div>
+              <div>Window</div>
+              <div>Last</div>
+              <div>Reactions</div>
+              <div>Skip/Replay</div>
             </div>
             <div className="divide-y text-xs">
-              {events.map((e, i) => {
-                const tsMs = e.positionMs ?? e.payload?.t ?? 0
-                const t = fmtMs(tsMs)
-                const segStart = typeof e.payload?.segmentStartMs === 'number' ? e.payload.segmentStartMs : undefined
-                const segEnd = typeof e.payload?.segmentEndMs === 'number' ? e.payload.segmentEndMs : undefined
-                const segStr = segStart != null && segEnd != null ? `Seg ${fmtMs(segStart)}–${fmtMs(segEnd)}` : ''
-                let details = '—'
-                if (e.type === 'LIKE' || e.type === 'DISLIKE' || e.type === 'NEUTRAL') {
-                  details = segStr || (e.payload?.event ?? e.type)
-                }
-                if (e.type === 'SKIP') {
-                  const toMs = e.payload?.toMs ?? 0
-                  details = [`→ ${fmtMs(toMs)}`, segStr].filter(Boolean).join(' • ')
-                }
-                if (e.type === 'REPLAY') {
-                  const toMs = e.payload?.toMs ?? 0
-                  details = [`← ${fmtMs(toMs)}`, segStr].filter(Boolean).join(' • ')
-                }
-                return (
-                  <div key={`ev-${i}`} className="grid grid-cols-4 items-center px-3 py-2">
-                    <div>
-                      <Button
-                        variant="outline"
-                        size="icon-sm"
-                        className={`${playingIndex === i && isPlaying ? 'bg-accent/60' : ''}`}
-                        aria-label={`${playingIndex === i && isPlaying ? 'Pause' : 'Play'} snippet at ${t}`}
-                        disabled={isPlaying && playingIndex !== i}
-                        onClick={() => {
-                          const el = audioRef.current
-                          if (!el) return
-                          if (playingIndex === i && isPlaying) { try { el.pause() } catch { }; return }
-                          if (stopTimerRef.current) clearTimeout(stopTimerRef.current)
-                          // Prefer preview from the segment start when available
-                          const startMs = typeof segStart === 'number' ? segStart : Math.max(0, tsMs - 1000)
-                          const endMs = typeof segEnd === 'number' ? Math.min(segEnd, startMs + 4000) : startMs + 3000
-                          el.currentTime = startMs / 1000
-                          void el.play()
-                          setPlayingIndex(i)
-                          setIsPlaying(true)
-                          stopTimerRef.current = setTimeout(() => { try { el.pause() } catch { } }, Math.max(500, endMs - startMs))
-                          window.dispatchEvent(new CustomEvent('play-snippet', { detail: { ms: startMs, durMs: endMs - startMs } }))
-                        }}
-                      >
-                        {playingIndex === i && isPlaying ? (
-                          <Pause className="h-4 w-4" />
-                        ) : (
-                          <Play className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                    <div>{t}</div>
-                    <div>{(e.payload?.event ?? e.type).toString().toUpperCase()}</div>
-                    <div>{details}</div>
-                  </div>
-                )
-              })}
-              {events.length === 0 && (
-                <div className="px-3 py-6 text-center text-xs text-muted-foreground">No events yet for this track.</div>
+              {segments.map((seg) => (
+                <div key={`row-${seg.idx}`} className="grid grid-cols-5 items-center px-3 py-2">
+                  <div>#{seg.idx + 1}</div>
+                  <div>{fmtMs(seg.startMs)}–{fmtMs(seg.endMs)}</div>
+                  <div>{seg.lastReaction ?? '—'}</div>
+                  <div>{seg.reactionsCount}</div>
+                  <div>{seg.skipsInto}/{seg.replaysInto}</div>
+                </div>
+              ))}
+              {segments.length === 0 && (
+                <div className="px-3 py-4 text-xs text-muted-foreground">No data to summarize.</div>
               )}
             </div>
           </div>
         </div>
-      </div>
+      </section>
+
       {/* Hidden audio element for snippets */}
       <audio
         ref={audioRef}
         src={src}
         className="hidden"
         onPlay={() => setIsPlaying(true)}
-        onPause={() => { setIsPlaying(false); setPlayingIndex(null); if (stopTimerRef.current) { clearTimeout(stopTimerRef.current); stopTimerRef.current = null } }}
-        onEnded={() => { setIsPlaying(false); setPlayingIndex(null); if (stopTimerRef.current) { clearTimeout(stopTimerRef.current); stopTimerRef.current = null } }}
+        onPause={() => { setIsPlaying(false); setPlayingKey(null); if (stopTimerRef.current) { clearTimeout(stopTimerRef.current); stopTimerRef.current = null } }}
+        onEnded={() => { setIsPlaying(false); setPlayingKey(null); if (stopTimerRef.current) { clearTimeout(stopTimerRef.current); stopTimerRef.current = null } }}
       />
     </div>
   )
 }
-
 

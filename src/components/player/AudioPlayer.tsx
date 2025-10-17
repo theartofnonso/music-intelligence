@@ -66,7 +66,7 @@ export default function AudioPlayerImproved({
         progressColor: '#000000',
         cursorColor: '#000000',
         normalize: true,
-        height: 84,
+        height: 54,
         responsive: true,
         interact: true,
       });
@@ -111,12 +111,10 @@ export default function AudioPlayerImproved({
       </div>
 
       {/* Time readout */}
-      <div className="mt-4">
         <div className="flex items-center justify-between text-xs text-zinc-700">
           <span className="font-mono">{formatMs(currentMs)}</span>
           <span className="font-mono">{formatMs(durationMs)}</span>
         </div>
-      </div>
 
       {/* Transport controls (bottom center) */}
       <div className="mt-6 flex items-center justify-center gap-4">

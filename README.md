@@ -37,60 +37,30 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Interaction Events (Session Flow)
 
-During the review experience, the client captures lightweight interaction events and batches them to `POST /api/events/batch`.
+The client captures reactions and transport events and batches them to the server.
 
 All events include:
 
-- `sessionId`: stable client session id
 - `trackId`: the track being reviewed
-- `type`: event kind
-- `positionMs`: reference timestamp in the track
-- `clientTs`: `Date.now()` on the client
+- `type`: event kind (LIKE | DISLIKE | NEUTRAL | SKIP | REPLAY)
 - `payload`: event-specific data
 
-### Reaction Event
+Reaction (LIKE/DISLIKE/NEUTRAL):
+- `t`: in-track timestamp (ms)
+- `segmentIndex`: number
+- `segmentStartMs`: number
+- `segmentEndMs`: number
 
-- `type`: `session_reaction`
-- `positionMs`: section midpoint
-- `payload`:
-  - `sectionIndex`: number
-  - `startMs`: number
-  - `endMs`: number
-  - `swipe`: -1 | 0 | +1
-  - `event`: "LIKE" | "DISLIKE" | "NEUTRAL"
-  - `weight`: +1 | 0 | -1
+Skip:
+- `t`: time of action (ms)
+- `toMs`: new position (ms)
+- `segmentIndex`: number
+- `segmentStartMs`: number (equals `toMs`)
+- `segmentEndMs`: number
 
-Weights:
-- LIKE → +1
-- DISLIKE → -1
-- NEUTRAL → 0 (no action before section end)
-
-### Skip Event
-
-- `type`: `session_skip`
-- `positionMs`: `fromMs`
-- `payload`:
-  - `fromMs`: number
-  - `toMs`: number
-  - `deltaMs`: number
-  - `fromSectionIndex`: number
-  - `toSectionIndex`: number
-  - `event`: "SKIP"
-  - `weight`: -1
-
-Use to analyze drop-off latency (e.g., histogram of `fromMs`).
-
-### Replay Event
-
-- `type`: `session_replay`
-- `positionMs`: `toMs`
-- `payload`:
-  - `fromMs`: number
-  - `toMs`: number
-  - `deltaMs`: number
-  - `fromSectionIndex`: number
-  - `toSectionIndex`: number
-  - `event`: "REPLAY"
-  - `weight`: +1
-
-Replay frequency can be interpreted as positive engagement. Combine with swipe-derived valence/arousal as needed.
+Replay:
+- `t`: time of action (ms)
+- `toMs`: new position (ms)
+- `segmentIndex`: number
+- `segmentStartMs`: number (equals `toMs`)
+- `segmentEndMs`: number
