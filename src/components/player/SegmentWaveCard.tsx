@@ -20,7 +20,7 @@ export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregat
   const waveRef = React.useRef<HTMLDivElement | null>(null)
   type WaveHandle = {
     load: (src: string) => void
-    on: (ev: string, cb: (...args: unknown[]) => void) => void
+    on: (ev: string, cb: (arg: number) => void) => void
     play: (start?: number, end?: number) => void
     pause: () => void
     setTime?: (sec: number) => void
