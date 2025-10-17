@@ -45,6 +45,8 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     const lastCompletedSegmentRef = useRef<number>(-1)
     const currentNudgeSegmentIdxRef = useRef<number | null>(null)
     const nudgeBoundaryDelayMs = 500
+    const segmentsReactedRef = useRef<Set<number>>(new Set())
+    const pendingFinalSendRef = useRef(false)
 
     const fadeOutAndPause = (durMs = 400) => {
         const el = mainRef.current
@@ -128,6 +130,16 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         // Autoplay removed to avoid racing with nudge/pause flow
 
         const onEndedMain = async () => {
+            const msTotal = Math.max(0, Math.floor((el.duration || 0) * 1000))
+            const lastSeg = getSegmentForMs(Math.max(0, msTotal - 1))
+            lastCompletedSegmentRef.current = lastSeg.idx
+            if (!segmentsReactedRef.current.has(lastSeg.idx)) {
+                currentNudgeSegmentIdxRef.current = lastSeg.idx
+                pendingFinalSendRef.current = true
+                setNudgeVisible(true)
+                setGateActive(true)
+                return
+            }
             const events = [...localEventsRef.current]
             localEventsRef.current = []
             if (!sentRef.current) {
@@ -194,6 +206,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                 segmentEndMs: seg.endMs,
             },
         })
+        segmentsReactedRef.current.add(seg.idx)
         // Update gating state
         setNudgeVisible(false)
         setGateActive(false)
@@ -201,6 +214,13 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         if (nudgeTimerRef.current) { clearTimeout(nudgeTimerRef.current); nudgeTimerRef.current = null }
         // Resume playback if we paused for gating
         if (mainRef.current && mainRef.current.paused) { try { void mainRef.current.play() } catch { } }
+        if (pendingFinalSendRef.current && !sentRef.current) {
+            pendingFinalSendRef.current = false
+            sentRef.current = true
+            const events = [...localEventsRef.current]
+            localEventsRef.current = []
+            void sendSessionPayload({ trackId, events })
+        }
     }, [currentMs, durationMs, gateIntervalMs])
 
     // no-op
