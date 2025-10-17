@@ -10,7 +10,6 @@ export default function AudioPlayerImproved({
   durationMs = 0,
   isPlaying = false,
   onTogglePlay,
-  onSeek,
   disabledControls = false,
   stepMs,
 }: {
@@ -19,7 +18,6 @@ export default function AudioPlayerImproved({
   durationMs?: number;
   isPlaying?: boolean;
   onTogglePlay?: () => void;
-  onSeek?: (ms: number) => void;
   disabledControls?: boolean;
   stepMs: number;
 }) {
@@ -42,9 +40,7 @@ export default function AudioPlayerImproved({
     seekTo?: (ratio: number) => void
   }
   const wsRef = React.useRef<WaveHandle | null>(null);
-  const onSeekRef = React.useRef<typeof onSeek>(onSeek)
   const durationRef = React.useRef<number>(durationMs)
-  React.useEffect(() => { onSeekRef.current = onSeek }, [onSeek])
   React.useEffect(() => { durationRef.current = durationMs }, [durationMs])
   React.useEffect(() => {
     let ws: WaveHandle | null = null;
