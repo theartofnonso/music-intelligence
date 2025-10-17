@@ -42,7 +42,8 @@ The client captures reactions and transport events and batches them to the serve
 All events include:
 
 - `trackId`: the track being reviewed
-- `type`: event kind (LIKE | DISLIKE | NEUTRAL)
+- `type`: event kind (LIKE | SUPER_LIKE | DISLIKE | NEUTRAL)
+- `weighting`: SUPER_LIKE is treated as 2x LIKE in analytics (badge competition and like totals), while also tracked as its own count.
 - `payload`: event-specific data
 
 Reaction (LIKE/DISLIKE/NEUTRAL):

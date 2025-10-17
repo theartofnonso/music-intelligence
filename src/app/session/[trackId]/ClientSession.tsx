@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import AudioPlayer from '@/components/player/AudioPlayer'
 import { sendSessionPayloadAction } from '../actions'
 
-type ReactionType = 'LIKE' | 'DISLIKE' | 'NEUTRAL'
+type ReactionType = 'LIKE' | 'DISLIKE' | 'NEUTRAL' | 'SUPER_LIKE'
 type ActionType = ReactionType
 type SegmentAttribution = {
     event: ActionType
@@ -33,7 +33,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     const sentRef = useRef(false)
     const [isPlaying, setIsPlaying] = useState(false)
 
-	// Gating and prompting state
+    // Gating and prompting state
     const [gateIntervalMs, setGateIntervalMs] = useState<number>(30_000)
     const [nudgeVisible, setNudgeVisible] = useState(false)
     const [gateActive, setGateActive] = useState(false)
@@ -184,8 +184,8 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         }
     }, [currentMs, durationMs, gateIntervalMs, getSegmentForMs])
 
-    const handleReaction = useCallback((reaction: -1 | 0 | 1) => {
-        const eventName: ReactionType = reaction === 1 ? 'LIKE' : reaction === -1 ? 'DISLIKE' : 'NEUTRAL'
+    const handleReaction = useCallback((reaction: -1 | 0 | 1 | 2) => {
+        const eventName: ReactionType = reaction === 2 ? 'SUPER_LIKE' : reaction === 1 ? 'LIKE' : reaction === -1 ? 'DISLIKE' : 'NEUTRAL'
         const t = Math.max(0, Math.min(durationMs || 0, currentMs))
         // Attribute reaction to the previous completed segment if available
         const targetIdx = currentNudgeSegmentIdxRef.current ?? lastCompletedSegmentRef.current
@@ -221,7 +221,6 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
             void sendSessionPayload({ trackId, events })
         }
     }, [currentMs, durationMs, gateIntervalMs])
-
     // removed: replay flow
 
     // no-op
@@ -236,23 +235,31 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                             <div className="w-full max-w-md rounded-md border bg-background p-4 shadow-lg">
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                     <p className="text-xs text-muted-foreground">Share a quick reaction</p>
-                                    <div className="flex w-full gap-2 sm:w-auto">
-                                        {/* Replay removed */}
+                                    <div className="flex w-full gap-2 sm:w-auto">    
                                         <button
-                                            className="flex-1 rounded-md border px-3 py-2 text-xs sm:flex-none cursor-pointer hover:bg-accent"
+                                            className="flex-1 rounded-md border px-3 py-2 text-base sm:flex-none cursor-pointer hover:bg-accent"
                                             onClick={() => handleReaction(-1)}
                                             aria-label="Dislike"
-                                        >Dislike</button>
+                                            title="Dislike"
+                                        >👎</button>
                                         <button
-                                            className="flex-1 rounded-md border px-3 py-2 text-xs sm:flex-none cursor-pointer hover:bg-accent"
+                                            className="flex-1 rounded-md border px-3 py-2 text-base sm:flex-none cursor-pointer hover:bg-accent"
                                             onClick={() => handleReaction(0)}
                                             aria-label="Neutral"
-                                        >Neutral</button>
+                                            title="Neutral"
+                                        >😐</button>
                                         <button
-                                            className="flex-1 rounded-md border px-3 py-2 text-xs sm:flex-none cursor-pointer hover:bg-accent"
+                                            className="flex-1 rounded-md border px-3 py-2 text-base sm:flex-none cursor-pointer hover:bg-accent"
+                                            onClick={() => handleReaction(2)}
+                                            aria-label="Super like"
+                                            title="Super like"
+                                        >🔥</button>
+                                        <button
+                                            className="flex-1 rounded-md border px-3 py-2 text-base sm:flex-none cursor-pointer hover:bg-accent"
                                             onClick={() => handleReaction(1)}
                                             aria-label="Like"
-                                        >Like</button>
+                                            title="Like"
+                                        >👍</button>
                                     </div>
                                 </div>
                             </div>

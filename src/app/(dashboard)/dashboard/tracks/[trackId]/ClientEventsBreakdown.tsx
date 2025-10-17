@@ -21,6 +21,7 @@ type SegmentInfo = {
   endMs: number
   reactionsCount: number
   likesCount: number
+  superLikesCount: number
   neutralCount: number
   dislikesCount: number
   skipsInto: number
@@ -42,13 +43,14 @@ export default function ClientEventsBreakdown({ src, events: initialEvents }: Pr
       const endMs = (e.payload?.segmentEndMs ?? -1) as number
       if (idx < 0 || startMs < 0 || endMs < 0) continue
       if (!map.has(idx)) {
-        map.set(idx, { idx, startMs, endMs, reactionsCount: 0, likesCount: 0, neutralCount: 0, dislikesCount: 0, skipsInto: 0, replaysInto: 0 })
+        map.set(idx, { idx, startMs, endMs, reactionsCount: 0, likesCount: 0, superLikesCount: 0, neutralCount: 0, dislikesCount: 0, skipsInto: 0, replaysInto: 0 })
       }
       const seg = map.get(idx)!
-      const isReactionType = (t: string): t is 'LIKE' | 'DISLIKE' | 'NEUTRAL' => t === 'LIKE' || t === 'DISLIKE' || t === 'NEUTRAL'
+      const isReactionType = (t: string): t is 'LIKE' | 'DISLIKE' | 'NEUTRAL' | 'SUPER_LIKE' => t === 'LIKE' || t === 'DISLIKE' || t === 'NEUTRAL' || t === 'SUPER_LIKE'
       if (isReactionType(e.type)) {
         seg.reactionsCount += 1
         if (e.type === 'LIKE') seg.likesCount += 1
+        if (e.type === 'SUPER_LIKE') { seg.superLikesCount += 1; seg.likesCount += 2 }
         if (e.type === 'NEUTRAL') seg.neutralCount += 1
         if (e.type === 'DISLIKE') seg.dislikesCount += 1
       }
@@ -75,7 +77,7 @@ export default function ClientEventsBreakdown({ src, events: initialEvents }: Pr
               endMs={seg.endMs}
               title={`Segment ${seg.idx + 1}`}
               subtitle={`${fmtMs(seg.startMs)}–${fmtMs(seg.endMs)}`}
-              aggregates={{ reactions: seg.reactionsCount, likes: seg.likesCount, neutral: seg.neutralCount, dislikes: seg.dislikesCount }}
+            aggregates={{ reactions: seg.reactionsCount, likes: seg.likesCount, neutral: seg.neutralCount, dislikes: seg.dislikesCount }}
               badges={segmentBadges[seg.idx] || []}
             />
             {/* per-segment comments removed */}
