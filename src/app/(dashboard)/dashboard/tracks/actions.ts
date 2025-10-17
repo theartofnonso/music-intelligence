@@ -1,6 +1,6 @@
 'use server'
 
-import { supabaseServer } from '@/lib/supabaseServer'
+import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
 export async function createTrackAction(formData: FormData) {
@@ -9,7 +9,8 @@ export async function createTrackAction(formData: FormData) {
 	const artist = (formData.get('artist') as string) || null
 	const duration_ms = formData.get('duration_ms') ? Number(formData.get('duration_ms')) : null
 	if (!storage_path) throw new Error('storage_path required')
-	const { data, error } = await supabaseServer
+	const supabase = await createClient()
+	const { data, error } = await supabase
 		.from('track')
 		.insert({ title, artist, storage_path, duration_ms })
 		.select('id,title,created_at,storage_path')
@@ -21,7 +22,8 @@ export async function createTrackAction(formData: FormData) {
 
 export async function deleteTrackAction(trackId: string) {
 	// Look up storage_path to delete file, then delete the track
-	const { data: t, error: selErr } = await supabaseServer
+	const supabase = await createClient()
+	const { data: t, error: selErr } = await supabase
 		.from('track')
 		.select('storage_path')
 		.eq('id', trackId)
@@ -55,11 +57,11 @@ export async function deleteTrackAction(trackId: string) {
 		if (!bucket || !objectPath) {
 			throw new Error('Failed to resolve storage object path for deletion')
 		}
-		const { error: remErr } = await supabaseServer.storage.from(bucket).remove([objectPath])
+		const { error: remErr } = await supabase.storage.from(bucket).remove([objectPath])
 		if (remErr) throw new Error(`Storage delete failed: ${remErr.message}`)
 	}
 
-	const { error: delErr } = await supabaseServer.from('track').delete().eq('id', trackId)
+	const { error: delErr } = await supabase.from('track').delete().eq('id', trackId)
 	if (delErr) throw new Error(delErr.message)
 	revalidatePath('/dashboard/tracks')
 	return { ok: true }
