@@ -1,8 +1,9 @@
-import { supabaseServer } from '@/lib/supabaseServer'
+import { createClient } from '@/lib/supabase/server'
 import { TracksClient, type Track } from './TracksClient'
 
 async function fetchTracks(): Promise<Track[]> {
-	const { data, error } = await supabaseServer
+	const supabase = await createClient()
+	const { data, error } = await supabase
         .from('track')
         .select('id,title,created_at')
 		.order('created_at', { ascending: false })

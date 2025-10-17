@@ -4,11 +4,11 @@ import { useCallback, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 // no card components
 import { UploadCloud, Music, Upload, X } from 'lucide-react'
-import { supabaseBrowser } from '@/lib/supabaseClient'
 import { createTrackAction } from './actions'
 import { formatRelativeTime } from '@/lib/utils'
 import { TrackRowActions } from '@/components/dashboard/TrackRowActions'
 import { Progress } from '@/components/ui/progress'
+import { supabase as supabaseBrowser } from '@/lib/supabase/client'
 
 export type Track = { id: string; title: string | null; created_at?: string }
 
@@ -62,9 +62,9 @@ export function TracksClient({ initialTracks }: Props) {
 			const folder = 'uploads'
 			const path = `${folder}/${file.name}`
 			console.log(`[upload][${reqId}] storage.upload`, { bucket: 'audio-public', path })
-			const { error: upErr } = await supabaseBrowser.storage.from('audio-public').upload(path, file, { upsert: false })
+            const { error: upErr } = await supabaseBrowser.storage.from('audio-public').upload(path, file, { upsert: false })
 			if (upErr) throw upErr
-			const { data: pub } = supabaseBrowser.storage.from(bucket).getPublicUrl(path)
+            const { data: pub } = supabaseBrowser.storage.from(bucket).getPublicUrl(path)
 			console.log(`[upload][${reqId}] got publicUrl`, { publicUrl: pub.publicUrl })
 			const form = new FormData()
 			form.set('title', file.name)

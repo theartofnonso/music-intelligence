@@ -213,7 +213,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
             localEventsRef.current = []
             void sendSessionPayload({ trackId, events })
         }
-    }, [currentMs, durationMs, gateIntervalMs])
+    }, [currentMs, durationMs, gateIntervalMs, getSegmentForMs, trackId])
     // removed: replay flow
 
     // no-op
@@ -266,7 +266,6 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                         durationMs={durationMs}
                         disabledControls={nudgeVisible || gateActive}
                         stepMs={gateIntervalMs}
-                        onSeek={undefined}
                         isPlaying={isPlaying}
                         onTogglePlay={async () => {
                             const el = mainRef.current; if (!el) return;

@@ -1,8 +1,9 @@
-import { supabaseServer } from '@/lib/supabaseServer'
+import { createClient } from '@/lib/supabase/server'
 import { ClientSession } from './ClientSession'
 
 async function fetchTrack(trackId: string) {
-    const { data, error } = await supabaseServer
+    const supabase = await createClient()
+    const { data, error } = await supabase
         .from('track')
         .select('id,title,storage_path')
         .eq('id', trackId)

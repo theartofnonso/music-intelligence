@@ -1,8 +1,9 @@
-import { supabaseServer } from '@/lib/supabaseServer'
+import { createClient } from '@/lib/supabase/server'
 import ClientEventsBreakdown from './ClientEventsBreakdown'
 
 async function fetchTrack(trackId: string) {
-    const { data, error } = await supabaseServer
+    const supabase = await createClient()
+    const { data, error } = await supabase
         .from('track')
         .select('id,title,artist,storage_path')
         .eq('id', trackId)
@@ -19,7 +20,8 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
     type ServerEvent = { type: string; positionMs: number; payload?: SegmentPayload }
     let serverEvents: ServerEvent[] = []
     try {
-        const { data, error } = await supabaseServer
+        const supabase = await createClient()
+        const { data, error } = await supabase
             .from('session')
             .select('payload, created_at')
             .eq('track_id', trackId)
