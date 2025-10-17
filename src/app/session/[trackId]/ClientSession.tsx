@@ -276,12 +276,18 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                         currentMs={currentMs}
                         durationMs={durationMs}
                         disabledControls={nudgeVisible || gateActive}
+                        stepMs={gateIntervalMs}
                         onSeek={(ms) => {
                             const el = mainRef.current; if (!el) return;
                             const fromMs = currentMs
-                            const toMs = Math.max(0, Math.min(durationMs || 0, ms))
-                            if (toMs > fromMs) {
-                                // Skip forward: capture latency position
+                            const reqMs = Math.max(0, Math.min(durationMs || 0, ms))
+                            const curSeg = getSegmentForMs(fromMs)
+                            let toMs = reqMs
+                            if (reqMs > fromMs) {
+                                // Snap to next segment start
+                                const nextIdx = curSeg.idx + 1
+                                const nextStart = Math.min(nextIdx * gateIntervalMs, Math.max(0, (durationMs || 1) - 1))
+                                toMs = nextStart
                                 const seg = getSegmentForMs(toMs)
                                 localEventsRef.current.push({
                                     type: 'SKIP',
@@ -290,24 +296,35 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                                         event: 'SKIP',
                                         t: fromMs,
                                         segmentIndex: seg.idx,
-                                        segmentStartMs: toMs,
+                                        segmentStartMs: seg.startMs,
                                         segmentEndMs: seg.endMs,
                                     },
                                 })
-                            } else if (toMs < fromMs) {
-                                // Replay/backward seek
+                            } else if (reqMs < fromMs) {
+                                // Snap to previous segment start and defer replay capture until end is reached
+                                const prevIdx = Math.max(0, curSeg.idx - 1)
+                                const prevStart = prevIdx * gateIntervalMs
+                                toMs = prevStart
                                 const seg = getSegmentForMs(toMs)
-                                localEventsRef.current.push({
-                                    type: 'REPLAY',
-                                    payload: {
-                                        toMs,
-                                        event: 'REPLAY',
-                                        t: toMs,
-                                        segmentIndex: seg.idx,
-                                        segmentStartMs: toMs,
-                                        segmentEndMs: seg.endMs,
-                                    },
-                                })
+                                const targetEnd = seg.endMs
+                                const onTick = () => {
+                                    const now = Math.floor((el.currentTime || 0) * 1000)
+                                    if (now >= targetEnd - 50) {
+                                        el.removeEventListener('timeupdate', onTick)
+                                        localEventsRef.current.push({
+                                            type: 'REPLAY',
+                                            payload: {
+                                                toMs,
+                                                event: 'REPLAY',
+                                                t: toMs,
+                                                segmentIndex: seg.idx,
+                                                segmentStartMs: seg.startMs,
+                                                segmentEndMs: seg.endMs,
+                                            },
+                                        })
+                                    }
+                                }
+                                el.addEventListener('timeupdate', onTick)
                             }
                             el.currentTime = Math.max(0, Math.min((durationMs / 1000) || 0, toMs / 1000))
                             // Auto-play after seek even when nudge is visible

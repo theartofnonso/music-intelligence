@@ -12,6 +12,7 @@ export default function AudioPlayerImproved({
   onTogglePlay,
   onSeek,
   disabledControls = false,
+  stepMs,
 }: {
   src?: string;
   currentMs?: number;
@@ -20,12 +21,13 @@ export default function AudioPlayerImproved({
   onTogglePlay?: () => void;
   onSeek?: (ms: number) => void;
   disabledControls?: boolean;
+  stepMs: number;
 }) {
 
   const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 
   // Step size for skip/replay controls
-  const STEP_MS = 5_000;
+  const STEP_MS = Math.max(1_000, Math.floor(stepMs));
 
   const formatMs = (ms: number) => {
     const total = Math.max(0, Math.floor(ms / 1000));
