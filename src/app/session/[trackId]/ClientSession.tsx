@@ -177,6 +177,10 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
             if (boundaryIndex > 0) lastCompletedSegmentRef.current = prevIdx
             // Show nudge for previous segment, after a short delay to ensure new segment starts playing
             if (boundaryIndex > 0) {
+                // Do not retarget a new segment if a nudge is already pending/visible
+                if (currentNudgeSegmentIdxRef.current != null) {
+                    return
+                }
                 if (nudgeTimerRef.current) { clearTimeout(nudgeTimerRef.current); nudgeTimerRef.current = null }
                 nudgeTimerRef.current = setTimeout(() => {
                     currentNudgeSegmentIdxRef.current = lastCompletedSegmentRef.current
