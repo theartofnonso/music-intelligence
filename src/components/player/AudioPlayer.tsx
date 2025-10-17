@@ -65,8 +65,7 @@ export default function AudioPlayerImproved({
         waveColor: '#d4d4d8', // zinc-300
         progressColor: '#000000',
         cursorColor: '#000000',
-        barWidth: 2,
-        barGap: 10,
+        normalize: true,
         height: 84,
         responsive: true,
         interact: true,

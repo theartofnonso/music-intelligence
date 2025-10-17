@@ -21,9 +21,8 @@ export default function SimpleWavePlayer({ src }: { src: string }) {
         waveColor: '#d4d4d8',
         progressColor: '#000000',
         cursorColor: '#000000',
-        barWidth: 2,
-        barGap: 10,
-        height: 84,
+        normalize: true,
+        height: 54,
         responsive: true,
         interact: true,
       })

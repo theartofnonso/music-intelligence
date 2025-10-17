@@ -105,9 +105,9 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         el.addEventListener('timeupdate', onTimeMain)
         el.addEventListener('play', onPlayMain)
         el.addEventListener('pause', onPauseMain)
-        
+
         // Autoplay removed to avoid racing with nudge/pause flow
-        
+
         const onEndedMain = async () => {
             const events = localEventsRef.current.slice()
             localEventsRef.current = []
@@ -202,35 +202,35 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     return (
         <div className="min-h-screen w-full flex items-center justify-center">
             <div className="space-y-3 w-full max-w-[560px] px-4">
-				{/* Reaction overlay: blur background and focus the prompt */}
-				{(nudgeVisible || gateActive) && (
-					<div className="fixed inset-0 z-50 bg-background/60 backdrop-blur-sm" role="dialog" aria-modal="true">
-						<div className="absolute inset-0 grid place-items-center p-4">
-							<div className="w-full max-w-md rounded-md border bg-background p-4 shadow-lg">
-								<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-									<p className="text-xs text-muted-foreground">Share a quick reaction</p>
-                            <div className="flex w-full gap-2 sm:w-auto">
-                                <button
-                                    className="flex-1 rounded-md border px-3 py-2 text-xs sm:flex-none cursor-pointer hover:bg-accent"
-                                    onClick={() => handleReaction(-1)}
-                                    aria-label="Dislike"
-                                >Dislike</button>
-                                <button
-                                    className="flex-1 rounded-md border px-3 py-2 text-xs sm:flex-none cursor-pointer hover:bg-accent"
-                                    onClick={() => handleReaction(0)}
-                                    aria-label="Neutral"
-                                >Neutral</button>
-                                <button
-                                    className="flex-1 rounded-md border px-3 py-2 text-xs sm:flex-none cursor-pointer hover:bg-accent"
-                                    onClick={() => handleReaction(1)}
-                                    aria-label="Like"
-                                >Like</button>
+                {/* Reaction overlay: blur background and focus the prompt */}
+                {(nudgeVisible || gateActive) && (
+                    <div className="fixed inset-0 z-50 bg-background/60 backdrop-blur-sm" role="dialog" aria-modal="true">
+                        <div className="absolute inset-0 grid place-items-center p-4">
+                            <div className="w-full max-w-md rounded-md border bg-background p-4 shadow-lg">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <p className="text-xs text-muted-foreground">Share a quick reaction</p>
+                                    <div className="flex w-full gap-2 sm:w-auto">
+                                        <button
+                                            className="flex-1 rounded-md border px-3 py-2 text-xs sm:flex-none cursor-pointer hover:bg-accent"
+                                            onClick={() => handleReaction(-1)}
+                                            aria-label="Dislike"
+                                        >Dislike</button>
+                                        <button
+                                            className="flex-1 rounded-md border px-3 py-2 text-xs sm:flex-none cursor-pointer hover:bg-accent"
+                                            onClick={() => handleReaction(0)}
+                                            aria-label="Neutral"
+                                        >Neutral</button>
+                                        <button
+                                            className="flex-1 rounded-md border px-3 py-2 text-xs sm:flex-none cursor-pointer hover:bg-accent"
+                                            onClick={() => handleReaction(1)}
+                                            aria-label="Like"
+                                        >Like</button>
+                                    </div>
+                                </div>
                             </div>
-								</div>
-							</div>
-						</div>
-					</div>
-				)}
+                        </div>
+                    </div>
+                )}
                 <div className="rounded p-4 text-center">
                     <AudioPlayer
                         src={src}
