@@ -7,9 +7,10 @@ import { sendSessionPayloadAction } from '../actions'
 type ReactionType = 'LIKE' | 'DISLIKE' | 'NEUTRAL'
 type ActionType = ReactionType | 'SKIP' | 'REPLAY'
 type SessionEvent = { type: ActionType; payload: any }
+type SegmentEvent = { type: 'SEGMENT'; payload: { event: 'SEGMENT'; t: number; segmentIndex: number; segmentStartMs: number; segmentEndMs: number } }
 
 // single-send using server action (no API route)
-async function sendSessionPayload(args: { trackId: string; events: SessionEvent[] }) {
+async function sendSessionPayload(args: { trackId: string; events: Array<SessionEvent | SegmentEvent> }) {
     const { trackId, events } = args
     if (!events || (Array.isArray(events) && events.length === 0)) return
     await sendSessionPayloadAction({ trackId, events })
@@ -21,6 +22,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     const [durationMs, setDurationMs] = useState<number>(0)
     const [currentMs, setCurrentMs] = useState<number>(0)
     const localEventsRef = useRef<SessionEvent[]>([])
+    const segmentMarkersRef = useRef<SegmentEvent[]>([])
     const sentRef = useRef(false)
     const [isPlaying, setIsPlaying] = useState(false)
 
@@ -68,12 +70,27 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         return { idx, startMs, endMs }
     }
 
+    // Emit structural segment markers so empty segments are captured
+    const emittedSegmentsRef = useRef<Set<number>>(new Set())
+    const emitSegmentMarker = (idx: number) => {
+        if (!Number.isFinite(idx) || idx < 0) return
+        if (emittedSegmentsRef.current.has(idx)) return
+        const startMs = idx * gateIntervalMs
+        const endMs = Math.min((idx + 1) * gateIntervalMs, durationMs || Number.POSITIVE_INFINITY)
+        emittedSegmentsRef.current.add(idx)
+        segmentMarkersRef.current.push({
+            type: 'SEGMENT',
+            payload: { event: 'SEGMENT', t: startMs, segmentIndex: idx, segmentStartMs: startMs, segmentEndMs: endMs },
+        })
+    }
+
     // Single-send model: we accumulate locally and send once on ended
     useEffect(() => {
         const handleEarlyExit = async () => {
             if (sentRef.current) return
             sentRef.current = true
-            const events = localEventsRef.current.slice()
+            const events = [...segmentMarkersRef.current, ...localEventsRef.current]
+            segmentMarkersRef.current = []
             localEventsRef.current = []
             await sendSessionPayload({ trackId, events })
         }
@@ -103,6 +120,9 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
             setNudgeVisible(false)
             setGateActive(false)
             setGateAtNextBoundary(false)
+            // Reset and emit segment 0 marker (start to first boundary)
+            emittedSegmentsRef.current = new Set()
+            emitSegmentMarker(0)
         }
         const onTimeMain = () => setCurrentMs(Math.floor((el.currentTime || 0) * 1000))
         const onPlayMain = () => setIsPlaying(true)
@@ -115,8 +135,12 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         // Autoplay removed to avoid racing with nudge/pause flow
 
         const onEndedMain = async () => {
-            const events = localEventsRef.current.slice()
+            const events = [...segmentMarkersRef.current, ...localEventsRef.current]
+            segmentMarkersRef.current = []
             localEventsRef.current = []
+            // Emit final segment marker if missing
+            const lastIdx = Math.max(0, getBoundaryIndex((el.duration || 0) * 1000 - 1))
+            emitSegmentMarker(lastIdx)
             if (!sentRef.current) {
                 sentRef.current = true
                 await sendSessionPayload({ trackId, events })
@@ -146,6 +170,8 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         const boundaryIndex = Math.floor(currentMs / gateIntervalMs)
         if (boundaryIndex !== lastPromptBoundaryRef.current) {
             lastPromptBoundaryRef.current = boundaryIndex
+            // Emit new segment marker at this boundary
+            emitSegmentMarker(boundaryIndex)
             // Strict gating: pause every boundary until reaction
             if (strictGating) {
                 setNudgeVisible(true)
