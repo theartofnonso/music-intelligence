@@ -88,6 +88,7 @@ export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregat
 
   
   const durationSec = Math.max(0, (endMs - startMs) / 1000)
+  const describeLast = (r?: string | null) => r === 'LIKE' ? 'Likes' : r === 'DISLIKE' ? 'Dislikes' : r === 'NEUTRAL' ? 'Neutral' : 'None'
 
   const handleToggle = async () => {
     const ws = wsRef.current
@@ -125,9 +126,11 @@ export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregat
       <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
         <span>{Math.max(0, Math.floor(startMs / 1000))}s – {Math.max(0, Math.floor(endMs / 1000))}s ({Math.max(1, Math.round(durationSec))}s)</span>
         {aggregates && (
-          <span>
-            {aggregates.lastReaction ?? '—'} · {aggregates.reactions ?? 0} reactions · {aggregates.skips ?? 0}/{aggregates.replays ?? 0}
-          </span>
+          <div className="ml-3 flex flex-wrap items-center gap-1">
+            <span className="rounded border px-2 py-0.5">{describeLast(aggregates.lastReaction)}: {aggregates.reactions ?? 0}</span>
+            <span className="rounded border px-2 py-0.5">Skips: {aggregates.skips ?? 0}</span>
+            <span className="rounded border px-2 py-0.5">Replays: {aggregates.replays ?? 0}</span>
+          </div>
         )}
       </div>
       
