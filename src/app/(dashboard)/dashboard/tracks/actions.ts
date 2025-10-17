@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createSecretClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
 export async function createTrackAction(formData: FormData) {
@@ -9,7 +9,7 @@ export async function createTrackAction(formData: FormData) {
 	const artist = (formData.get('artist') as string) || null
 	const duration_ms = formData.get('duration_ms') ? Number(formData.get('duration_ms')) : null
 	if (!storage_path) throw new Error('storage_path required')
-	const supabase = await createClient()
+	const supabase = createSecretClient()
 	const { data, error } = await supabase
 		.from('track')
 		.insert({ title, artist, storage_path, duration_ms })
@@ -22,7 +22,7 @@ export async function createTrackAction(formData: FormData) {
 
 export async function deleteTrackAction(trackId: string) {
 	// Look up storage_path to delete file, then delete the track
-	const supabase = await createClient()
+	const supabase = createSecretClient()
 	const { data: t, error: selErr } = await supabase
 		.from('track')
 		.select('storage_path')

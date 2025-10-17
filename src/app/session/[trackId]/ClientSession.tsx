@@ -95,7 +95,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
             removeEventListener('pagehide', handleEarlyExit)
             removeEventListener('beforeunload', handleEarlyExit)
         }
-    }, [trackId, getSegmentForMs])
+    }, [trackId])
 
     useEffect(() => {
         const el = mainRef.current
