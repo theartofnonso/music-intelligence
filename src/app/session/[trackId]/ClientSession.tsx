@@ -5,7 +5,7 @@ import AudioPlayer from '@/components/player/AudioPlayer'
 import { sendSessionPayloadAction } from '../actions'
 
 type ReactionType = 'LIKE' | 'DISLIKE' | 'NEUTRAL'
-type ActionType = ReactionType | 'SKIP' | 'REPLAY'
+type ActionType = ReactionType
 type SegmentAttribution = {
     event: ActionType
     t: number
@@ -44,7 +44,6 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     // Nudge-targeted segment (previous completed segment)
     const lastCompletedSegmentRef = useRef<number>(-1)
     const currentNudgeSegmentIdxRef = useRef<number | null>(null)
-    const nudgeBoundaryDelayMs = 500
     const segmentsReactedRef = useRef<Set<number>>(new Set())
     const pendingFinalSendRef = useRef(false)
 
@@ -127,8 +126,6 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         el.addEventListener('play', onPlayMain)
         el.addEventListener('pause', onPauseMain)
 
-        // Autoplay removed to avoid racing with nudge/pause flow
-
         const onEndedMain = async () => {
             const msTotal = Math.max(0, Math.floor((el.duration || 0) * 1000))
             const lastSeg = getSegmentForMs(Math.max(0, msTotal - 1))
@@ -177,17 +174,12 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
             if (boundaryIndex > 0) lastCompletedSegmentRef.current = prevIdx
             // Show nudge for previous segment, after a short delay to ensure new segment starts playing
             if (boundaryIndex > 0) {
-                // Do not retarget a new segment if a nudge is already pending/visible
-                if (currentNudgeSegmentIdxRef.current != null) {
-                    return
-                }
                 if (nudgeTimerRef.current) { clearTimeout(nudgeTimerRef.current); nudgeTimerRef.current = null }
-                nudgeTimerRef.current = setTimeout(() => {
-                    currentNudgeSegmentIdxRef.current = lastCompletedSegmentRef.current
-                    setNudgeVisible(true)
-                    setGateActive(true)
-                    fadeOutAndPause(400)
-                }, nudgeBoundaryDelayMs)
+                // Always show nudge immediately at boundary
+                currentNudgeSegmentIdxRef.current = lastCompletedSegmentRef.current
+                setNudgeVisible(true)
+                setGateActive(true)
+                fadeOutAndPause(400)
             }
         }
     }, [currentMs, durationMs, gateIntervalMs, getSegmentForMs])
@@ -230,17 +222,9 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         }
     }, [currentMs, durationMs, gateIntervalMs])
 
-    // no-op
+    // removed: replay flow
 
-    useEffect(() => {
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'ArrowLeft') handleReaction(-1)
-            if (e.key === 'ArrowRight') handleReaction(1)
-            if (e.key === 'ArrowDown') handleReaction(0)
-        }
-        addEventListener('keydown', onKey)
-        return () => removeEventListener('keydown', onKey)
-    }, [handleReaction])
+    // no-op
 
     return (
         <div className="min-h-screen w-full flex items-center justify-center">
@@ -253,6 +237,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                     <p className="text-xs text-muted-foreground">Share a quick reaction</p>
                                     <div className="flex w-full gap-2 sm:w-auto">
+                                        {/* Replay removed */}
                                         <button
                                             className="flex-1 rounded-md border px-3 py-2 text-xs sm:flex-none cursor-pointer hover:bg-accent"
                                             onClick={() => handleReaction(-1)}
@@ -281,59 +266,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                         durationMs={durationMs}
                         disabledControls={nudgeVisible || gateActive}
                         stepMs={gateIntervalMs}
-                        onSeek={(ms) => {
-                            const el = mainRef.current; if (!el) return;
-                            const fromMs = currentMs
-                            const reqMs = Math.max(0, Math.min(durationMs || 0, ms))
-                            const curSeg = getSegmentForMs(fromMs)
-                            let toMs = reqMs
-                            if (reqMs > fromMs) {
-                                // Snap to next segment start
-                                const nextIdx = curSeg.idx + 1
-                                const nextStart = Math.min(nextIdx * gateIntervalMs, Math.max(0, (durationMs || 1) - 1))
-                                toMs = nextStart
-                                // Capture the segment we're skipping FROM (curSeg), not the one we're going TO
-                                localEventsRef.current.push({
-                                    type: 'SKIP',
-                                    payload: {
-                                        toMs,
-                                        event: 'SKIP',
-                                        t: fromMs,
-                                        segmentIndex: curSeg.idx,
-                                        segmentStartMs: curSeg.startMs,
-                                        segmentEndMs: curSeg.endMs,
-                                    },
-                                })
-                            } else if (reqMs < fromMs) {
-                                // Snap to previous segment start and defer replay capture until end is reached
-                                const prevIdx = Math.max(0, curSeg.idx - 1)
-                                const prevStart = prevIdx * gateIntervalMs
-                                toMs = prevStart
-                                const seg = getSegmentForMs(toMs)
-                                const targetEnd = seg.endMs
-                                const onTick = () => {
-                                    const now = Math.floor((el.currentTime || 0) * 1000)
-                                    if (now >= targetEnd - 50) {
-                                        el.removeEventListener('timeupdate', onTick)
-                                        localEventsRef.current.push({
-                                            type: 'REPLAY',
-                                            payload: {
-                                                toMs,
-                                                event: 'REPLAY',
-                                                t: toMs,
-                                                segmentIndex: seg.idx,
-                                                segmentStartMs: seg.startMs,
-                                                segmentEndMs: seg.endMs,
-                                            },
-                                        })
-                                    }
-                                }
-                                el.addEventListener('timeupdate', onTick)
-                            }
-                            el.currentTime = Math.max(0, Math.min((durationMs / 1000) || 0, toMs / 1000))
-                            // Auto-play after seek even when nudge is visible
-                            try { void el.play() } catch { }
-                        }}
+                        onSeek={undefined}
                         isPlaying={isPlaying}
                         onTogglePlay={async () => {
                             const el = mainRef.current; if (!el) return;

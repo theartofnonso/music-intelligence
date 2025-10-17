@@ -42,7 +42,7 @@ The client captures reactions and transport events and batches them to the serve
 All events include:
 
 - `trackId`: the track being reviewed
-- `type`: event kind (LIKE | DISLIKE | NEUTRAL | SKIP | REPLAY)
+- `type`: event kind (LIKE | DISLIKE | NEUTRAL)
 - `payload`: event-specific data
 
 Reaction (LIKE/DISLIKE/NEUTRAL):

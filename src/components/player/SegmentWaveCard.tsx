@@ -10,7 +10,7 @@ type Props = {
   endMs: number
   title?: string
   subtitle?: string
-  aggregates?: { reactions?: number; skips?: number; replays?: number; likes?: number; neutral?: number; dislikes?: number }
+  aggregates?: { reactions?: number; likes?: number; neutral?: number; dislikes?: number }
   badges?: string[]
 }
 
@@ -155,8 +155,6 @@ export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregat
             <span className="rounded border px-2 py-0.5 border-green-300 bg-green-50 text-green-700">👍 Likes: {aggregates.likes ?? 0}</span>
             <span className="rounded border px-2 py-0.5 border-zinc-300 bg-zinc-50 text-zinc-700">😐 Neutral: {aggregates.neutral ?? 0}</span>
             <span className="rounded border px-2 py-0.5 border-red-300 bg-red-50 text-red-700">👎 Dislikes: {aggregates.dislikes ?? 0}</span>
-            <span className="rounded border px-2 py-0.5 border-amber-300 bg-amber-50 text-amber-700">⏭️ Skips: {aggregates.skips ?? 0}</span>
-            <span className="rounded border px-2 py-0.5 border-blue-300 bg-blue-50 text-blue-700">🔁 Replays: {aggregates.replays ?? 0}</span>
           </div>
         )}
       </div>

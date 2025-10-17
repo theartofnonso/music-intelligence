@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { Pause, Play, RotateCcw, SkipForward } from "lucide-react";
+import { Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button"
 
 export default function AudioPlayerImproved({
@@ -26,29 +26,11 @@ export default function AudioPlayerImproved({
 
   const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 
-  // Step size for skip/replay controls
-  const STEP_MS = Math.max(1_000, Math.floor(stepMs));
-
   const formatMs = (ms: number) => {
     const total = Math.max(0, Math.floor(ms / 1000));
     const m = Math.floor(total / 60);
     const s = total % 60;
     return `${m}:${s.toString().padStart(2, '0')}`;
-  };
-  const handleReplaySection = () => {
-    if (!onSeek || durationMs <= 0) return;
-    // Prevent when controls are disabled
-    if (disabledControls) return;
-    flashPressed('replay');
-    const toMs = Math.max(0, (currentMs || 0) - STEP_MS);
-    onSeek(toMs);
-  };
-  const handleSkipSection = () => {
-    if (!onSeek || durationMs <= 0) return;
-    if (disabledControls) return;
-    flashPressed('skip');
-    const toMs = Math.min(durationMs, (currentMs || 0) + STEP_MS);
-    onSeek(toMs);
   };
 
   // Wavesurfer waveform
@@ -79,16 +61,10 @@ export default function AudioPlayerImproved({
         normalize: true,
         height: 54,
         responsive: true,
-        interact: true,
+        interact: false,
       }) as WaveHandle;
       wsRef.current = ws;
       ws.load(src);
-      ws.on('seek', (progress: number) => {
-        const d = durationRef.current
-        const cb = onSeekRef.current
-        if (!cb || !d) return
-        cb(Math.round(d * progress))
-      });
     }
     setup();
     return () => {
@@ -107,7 +83,7 @@ export default function AudioPlayerImproved({
   }, [currentMs, durationMs]);
 
   // Transient pressed state for visual feedback
-  const [pressed, setPressed] = React.useState<{ replay: boolean; dislike: boolean; like: boolean; skip: boolean }>({ replay: false, dislike: false, like: false, skip: false });
+  const [pressed, setPressed] = React.useState<{ like: boolean }>({ like: false });
   const flashPressed = (key: keyof typeof pressed, ms = 180) => {
     setPressed((p) => ({ ...p, [key]: true }));
     window.setTimeout(() => setPressed((p) => ({ ...p, [key]: false })), ms);
@@ -115,33 +91,8 @@ export default function AudioPlayerImproved({
 
   return (
     <div className="w-full max-w-[480px] mx-auto rounded-2xl p-6">
-      {/* Waveform (Wavesurfer.js) */}
-      <div className="relative w-full select-none">
-        <div ref={waveRef} className="h-24 w-full" />
-        {disabledControls && (
-          <div className="absolute inset-0 z-10 cursor-not-allowed" aria-hidden="true" />
-        )}
-      </div>
-
-      {/* Time readout */}
-        <div className="flex items-center justify-between text-xs text-zinc-700">
-          <span className="font-mono">{formatMs(currentMs)}</span>
-          <span className="font-mono">{formatMs(durationMs)}</span>
-        </div>
-
-      {/* Transport controls (bottom center) */}
-      <div className="mt-6 flex items-center justify-center gap-4">
-        <Button
-          variant="outline"
-          size="icon"
-          aria-label="Replay 10 seconds"
-          onClick={handleReplaySection}
-          aria-pressed={pressed.replay}
-          className={`rounded-full active:scale-95 ${pressed.replay ? 'bg-red-500 text-white' : ''}`}
-          disabled={disabledControls}
-        >
-          <RotateCcw className="h-5 w-5" />
-        </Button>
+      {/* Waveform (Wavesurfer.js) with play/pause control */}
+      <div className="w-full flex items-center justify-center gap-3">
         <Button
           variant="default"
           size="icon-lg"
@@ -152,18 +103,21 @@ export default function AudioPlayerImproved({
         >
           {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
         </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          aria-label="Skip forward 10 seconds"
-          onClick={handleSkipSection}
-          aria-pressed={pressed.skip}
-          className={`rounded-full active:scale-95 ${pressed.skip ? 'bg-emerald-500 text-white' : ''}`}
-          disabled={disabledControls}
-        >
-          <SkipForward className="h-5 w-5" />
-        </Button>
+        <div className="relative w-full select-none flex items-center">
+          <div ref={waveRef} className="h-12 w-full" />
+          {disabledControls && (
+            <div className="absolute inset-0 z-10 cursor-not-allowed" aria-hidden="true" />
+          )}
+        </div>
       </div>
+
+      {/* Time readout */}
+        <div className="flex items-center justify-between text-xs text-zinc-700 mt-4">
+          <span className="font-mono">{formatMs(currentMs)}</span>
+          <span className="font-mono">{formatMs(durationMs)}</span>
+        </div>
+
+      {/* Transport controls removed; play/pause is beside waveform */}
     </div>
   );
 }

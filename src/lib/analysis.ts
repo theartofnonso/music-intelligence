@@ -8,10 +8,10 @@ export type InsightsResult = {
 
 export function generateSegmentInsights(events: RawEvent[]): InsightsResult {
     // Canonical categories and deterministic dominance order for tie-breaking
-    const CATEGORIES = ['LIKE', 'DISLIKE', 'SKIP', 'REPLAY', 'NEUTRAL'] as const
+    const CATEGORIES = ['LIKE', 'DISLIKE', 'NEUTRAL'] as const
     type EventCategory = typeof CATEGORIES[number]
     // Positive signals first, then negative, then neutral for insight wording
-    const DOMINANCE_ORDER: EventCategory[] = ['LIKE', 'REPLAY', 'SKIP', 'DISLIKE', 'NEUTRAL']
+    const DOMINANCE_ORDER: EventCategory[] = ['LIKE', 'DISLIKE', 'NEUTRAL']
 
     // group events by segmentIndex
     const bySeg = new Map<number, RawEvent[]>()
@@ -24,15 +24,13 @@ export function generateSegmentInsights(events: RawEvent[]): InsightsResult {
     const segments: Record<number, string[]> = {}
     
     // Track counts per segment for overall insights
-    const segmentCounts = new Map<number, { LIKE: number; DISLIKE: number; SKIP: number; REPLAY: number; NEUTRAL: number }>()
+    const segmentCounts = new Map<number, { LIKE: number; DISLIKE: number; NEUTRAL: number }>()
     
     for (const [idx, segEvents] of bySeg.entries()) {
         // Count event types
         const counts = {
             LIKE: 0,
             DISLIKE: 0,
-            SKIP: 0,
-            REPLAY: 0,
             NEUTRAL: 0
         }
         
@@ -72,12 +70,6 @@ export function generateSegmentInsights(events: RawEvent[]): InsightsResult {
             case 'DISLIKE':
                 insight = `Listeners disliked this part of the song`
                 break
-            case 'SKIP':
-                insight = `Listeners skipped this part of the song`
-                break
-            case 'REPLAY':
-                insight = `Listeners replayed this part of the song`
-                break
             case 'NEUTRAL':
                 insight = `Listeners had neutral engagement with this part of the song`
                 break
@@ -91,23 +83,17 @@ export function generateSegmentInsights(events: RawEvent[]): InsightsResult {
     
     if (segmentCounts.size > 0) {
         // Compute maxima per category (first pass)
-        let maxLikes = 0, maxDislikes = 0, maxSkips = 0, maxReplays = 0
+        let maxLikes = 0, maxDislikes = 0
         for (const counts of segmentCounts.values()) {
             if (counts.LIKE > maxLikes) maxLikes = counts.LIKE
             if (counts.DISLIKE > maxDislikes) maxDislikes = counts.DISLIKE
-            if (counts.SKIP > maxSkips) maxSkips = counts.SKIP
-            if (counts.REPLAY > maxReplays) maxReplays = counts.REPLAY
         }
         // Identify unique leaders (second pass). If tie, no badge for that category.
         const likeLeaders: number[] = []
         const dislikeLeaders: number[] = []
-        const skipLeaders: number[] = []
-        const replayLeaders: number[] = []
         for (const [idx, counts] of segmentCounts.entries()) {
             if (maxLikes > 0 && counts.LIKE === maxLikes) likeLeaders.push(idx)
             if (maxDislikes > 0 && counts.DISLIKE === maxDislikes) dislikeLeaders.push(idx)
-            if (maxSkips > 0 && counts.SKIP === maxSkips) skipLeaders.push(idx)
-            if (maxReplays > 0 && counts.REPLAY === maxReplays) replayLeaders.push(idx)
         }
         if (likeLeaders.length === 1) {
             const idx = likeLeaders[0]
@@ -119,16 +105,7 @@ export function generateSegmentInsights(events: RawEvent[]): InsightsResult {
             if (!badges[idx]) badges[idx] = []
             badges[idx].push('Most Disliked')
         }
-        if (skipLeaders.length === 1) {
-            const idx = skipLeaders[0]
-            if (!badges[idx]) badges[idx] = []
-            badges[idx].push('Most Skipped')
-        }
-        if (replayLeaders.length === 1) {
-            const idx = replayLeaders[0]
-            if (!badges[idx]) badges[idx] = []
-            badges[idx].push('Most Replayed')
-        }
+        // No replay-related badges
     }
     
     return { segments, badges }

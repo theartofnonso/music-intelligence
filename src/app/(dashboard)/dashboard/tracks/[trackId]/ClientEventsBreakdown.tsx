@@ -52,8 +52,8 @@ export default function ClientEventsBreakdown({ src, events: initialEvents }: Pr
         if (e.type === 'NEUTRAL') seg.neutralCount += 1
         if (e.type === 'DISLIKE') seg.dislikesCount += 1
       }
-      if (e.type === 'SKIP') seg.skipsInto += 1
-      if (e.type === 'REPLAY') seg.replaysInto += 1
+      // SKIP removed from event model
+      // REPLAY removed from event model
     }
     return Array.from(map.values()).sort((a, b) => a.idx - b.idx)
   }, [events])
@@ -75,7 +75,7 @@ export default function ClientEventsBreakdown({ src, events: initialEvents }: Pr
               endMs={seg.endMs}
               title={`Segment ${seg.idx + 1}`}
               subtitle={`${fmtMs(seg.startMs)}–${fmtMs(seg.endMs)}`}
-              aggregates={{ reactions: seg.reactionsCount, skips: seg.skipsInto, replays: seg.replaysInto, likes: seg.likesCount, neutral: seg.neutralCount, dislikes: seg.dislikesCount }}
+              aggregates={{ reactions: seg.reactionsCount, likes: seg.likesCount, neutral: seg.neutralCount, dislikes: seg.dislikesCount }}
               badges={segmentBadges[seg.idx] || []}
             />
             {!!segComments?.[seg.idx]?.length && (
