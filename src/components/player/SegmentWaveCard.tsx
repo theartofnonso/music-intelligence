@@ -88,7 +88,15 @@ export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregat
 
   
   const durationSec = Math.max(0, (endMs - startMs) / 1000)
-  const describeLast = (r?: string | null) => r === 'LIKE' ? 'Likes' : r === 'DISLIKE' ? 'Dislikes' : r === 'NEUTRAL' ? 'Neutral' : 'None'
+  const describeLast = (r?: string | null) => r === 'LIKE' ? '👍 Likes' : r === 'DISLIKE' ? '👎 Dislikes' : r === 'NEUTRAL' ? '😐 Neutral' : '— None'
+  const reactionClasses = (r?: string | null) =>
+    r === 'LIKE'
+      ? 'border-green-300 bg-green-50 text-green-700'
+      : r === 'DISLIKE'
+      ? 'border-red-300 bg-red-50 text-red-700'
+      : r === 'NEUTRAL'
+      ? 'border-zinc-300 bg-zinc-50 text-zinc-700'
+      : 'border-zinc-200 text-zinc-500'
 
   const handleToggle = async () => {
     const ws = wsRef.current
@@ -127,9 +135,9 @@ export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregat
         <span>{Math.max(0, Math.floor(startMs / 1000))}s – {Math.max(0, Math.floor(endMs / 1000))}s ({Math.max(1, Math.round(durationSec))}s)</span>
         {aggregates && (
           <div className="ml-3 flex flex-wrap items-center gap-1">
-            <span className="rounded border px-2 py-0.5">{describeLast(aggregates.lastReaction)}: {aggregates.reactions ?? 0}</span>
-            <span className="rounded border px-2 py-0.5">Skips: {aggregates.skips ?? 0}</span>
-            <span className="rounded border px-2 py-0.5">Replays: {aggregates.replays ?? 0}</span>
+            <span className={`rounded border px-2 py-0.5 ${reactionClasses(aggregates.lastReaction)}`}>{describeLast(aggregates.lastReaction)}: {aggregates.reactions ?? 0}</span>
+            <span className="rounded border px-2 py-0.5 border-amber-300 bg-amber-50 text-amber-700">⏭️ Skips: {aggregates.skips ?? 0}</span>
+            <span className="rounded border px-2 py-0.5 border-blue-300 bg-blue-50 text-blue-700">🔁 Replays: {aggregates.replays ?? 0}</span>
           </div>
         )}
       </div>
