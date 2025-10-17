@@ -1,6 +1,5 @@
 import { supabaseServer } from '@/lib/supabaseServer'
 import ClientEventsBreakdown from './ClientEventsBreakdown'
-import SimpleWavePlayer from '@/components/player/SimpleWavePlayer'
 
 async function fetchTrack(trackId: string) {
     const { data, error } = await supabaseServer
@@ -47,21 +46,10 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
                 </div>
             </div>
 
-            {/* Player */}
-			<section>
-				{track?.storage_path ? (
-					<SimpleWavePlayer src={track.storage_path} />
-				) : (
-					<div className="h-24 rounded-md border bg-foreground/5 opacity-50 grid place-items-center text-xs text-muted-foreground">
-						Audio unavailable
-					</div>
-				)}
-			</section>
-
             {/* Event breakdown */}
-			<section>
-				<ClientEventsBreakdown src={track?.storage_path ?? ''} events={serverEvents} />
-			</section>
+            <section>
+                <ClientEventsBreakdown src={track?.storage_path ?? ''} events={serverEvents} />
+            </section>
         </div>
     )
 }
