@@ -31,7 +31,7 @@ export default function SignInPage() {
       setMessage(null)
       const { error } = await supabaseBrowser.auth.verifyOtp({ email, token: otp, type: 'email' })
       if (error) throw error
-      window.location.href = '/dashboard'
+      window.location.href = '/dashboard/tracks'
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Invalid code'
       setMessage(msg)

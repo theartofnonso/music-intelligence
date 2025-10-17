@@ -10,7 +10,6 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Menu } from 'lucide-react'
 
 const navItems = [
-	{ title: 'Overview', url: '/dashboard' },
 	{ title: 'Tracks', url: '/dashboard/tracks' },
 ]
 
