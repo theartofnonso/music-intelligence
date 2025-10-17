@@ -44,7 +44,7 @@ export function SidebarMenuItem({ children, className }: { children: React.React
 	return <li className={cn('', className)}>{children}</li>
 }
 
-export function SidebarMenuButton({ children, className, isActive, asChild }: { children: React.ReactNode; className?: string; isActive?: boolean; asChild?: boolean }) {
+export function SidebarMenuButton({ children, className, isActive }: { children: React.ReactNode; className?: string; isActive?: boolean }) {
 	return (
         <Slot className={cn('block rounded-none px-3 py-2 text-sm hover:bg-sidebar-accent', isActive && 'bg-sidebar-accent', className)}>
             {children}

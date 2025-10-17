@@ -30,7 +30,7 @@ export function AppSidebarLayout({ children }: { children: React.ReactNode }) {
 									const active = pathname.startsWith(item.url)
 									return (
 										<SidebarMenuItem key={item.url}>
-											<SidebarMenuButton asChild isActive={active}>
+                                            <SidebarMenuButton isActive={active}>
 												<Link href={item.url} className={cn('w-full cursor-pointer', active && 'bg-sidebar-accent')}>
 													<span className="block w-full">{item.title}</span>
 												</Link>
@@ -65,7 +65,7 @@ export function AppSidebarLayout({ children }: { children: React.ReactNode }) {
 										const active = pathname.startsWith(item.url)
 										return (
 											<li key={item.url}>
-												<SidebarMenuButton asChild isActive={active}>
+                                                <SidebarMenuButton isActive={active}>
 													<Link href={item.url} className={cn('w-full cursor-pointer', active && 'bg-sidebar-accent')}>
 														<span className="block w-full">{item.title}</span>
 													</Link>

@@ -18,6 +18,7 @@ const GLOBAL_EVENT = 'segment-wavecard:play'
 
 export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregates }: Props) {
   const waveRef = React.useRef<HTMLDivElement | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const wsRef = React.useRef<any>(null)
   const [isPlaying, setIsPlaying] = React.useState(false)
   const playEndRef = React.useRef<number | null>(null)
@@ -25,6 +26,7 @@ export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregat
 
   // Setup Wavesurfer
   React.useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let ws: any
     let cancelled = false
     async function setup() {
@@ -64,6 +66,7 @@ export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregat
   }, [src])
 
   // Single play coordination
+  const cardId = React.useId()
   React.useEffect(() => {
     const onGlobal = (ev: Event) => {
       const id = (ev as CustomEvent<string>).detail
@@ -74,9 +77,9 @@ export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregat
     }
     window.addEventListener(GLOBAL_EVENT, onGlobal as EventListener)
     return () => window.removeEventListener(GLOBAL_EVENT, onGlobal as EventListener)
-  }, [])
+  }, [cardId])
 
-  const cardId = React.useId()
+  
   const durationSec = Math.max(0, (endMs - startMs) / 1000)
 
   const handleToggle = async () => {

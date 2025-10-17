@@ -37,11 +37,12 @@ export default function ClientEventsBreakdown({ src, events: initialEvents }: { 
         map.set(idx, { idx, startMs, endMs, lastReaction: null, reactionsCount: 0, skipsInto: 0, replaysInto: 0 })
       }
       const seg = map.get(idx)!
-      if (e.type === 'LIKE' || e.type === 'DISLIKE' || e.type === 'NEUTRAL') {
+      const isReactionType = (t: string): t is 'LIKE' | 'DISLIKE' | 'NEUTRAL' => t === 'LIKE' || t === 'DISLIKE' || t === 'NEUTRAL'
+      if (isReactionType(e.type)) {
         seg.reactionsCount += 1
         // Use latest by time 't' as lastReaction
-        const prevT = (events.findLast?.((x: any) => (x.payload?.segmentIndex ?? -1) === idx && (x.type === 'LIKE' || x.type === 'DISLIKE' || x.type === 'NEUTRAL'))?.payload?.t) ?? seg.startMs
-        if (typeof e.payload?.t === 'number' && e.payload.t >= prevT) seg.lastReaction = e.type as any
+        const prevT = (events.findLast?.((x: RawEvent) => (x.payload?.segmentIndex ?? -1) === idx && isReactionType(x.type))?.payload?.t) ?? seg.startMs
+        if (typeof e.payload?.t === 'number' && e.payload.t >= prevT) seg.lastReaction = e.type
       }
       if (e.type === 'SKIP') seg.skipsInto += 1
       if (e.type === 'REPLAY') seg.replaysInto += 1

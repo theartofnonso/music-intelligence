@@ -1,16 +1,23 @@
 "use client"
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import AudioPlayer from '@/components/player/AudioPlayer'
 import { sendSessionPayloadAction } from '../actions'
 
 type ReactionType = 'LIKE' | 'DISLIKE' | 'NEUTRAL'
 type ActionType = ReactionType | 'SKIP' | 'REPLAY'
-type SessionEvent = { type: ActionType; payload: any }
-type SegmentEvent = { type: 'SEGMENT'; payload: { event: 'SEGMENT'; t: number; segmentIndex: number; segmentStartMs: number; segmentEndMs: number } }
+type SegmentAttribution = {
+    event: ActionType
+    t: number
+    segmentIndex: number
+    segmentStartMs: number
+    segmentEndMs: number
+    toMs?: number
+}
+type SessionEvent = { type: ActionType; payload: SegmentAttribution }
 
 // single-send using server action (no API route)
-async function sendSessionPayload(args: { trackId: string; events: Array<SessionEvent | SegmentEvent> }) {
+async function sendSessionPayload(args: { trackId: string; events: SessionEvent[] }) {
     const { trackId, events } = args
     if (!events || (Array.isArray(events) && events.length === 0)) return
     await sendSessionPayloadAction({ trackId, events })
@@ -22,21 +29,22 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     const [durationMs, setDurationMs] = useState<number>(0)
     const [currentMs, setCurrentMs] = useState<number>(0)
     const localEventsRef = useRef<SessionEvent[]>([])
-    const segmentMarkersRef = useRef<SegmentEvent[]>([])
+    // Structural segment markers no longer needed (gating enforces reactions)
     const sentRef = useRef(false)
     const [isPlaying, setIsPlaying] = useState(false)
 
-    // Gating and prompting state
-    const strictGating = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_STRICT_GATING === '1'
+	// Gating and prompting state
     const [gateIntervalMs, setGateIntervalMs] = useState<number>(30_000)
-    const nudgeTimeoutMs = 2_500 // escalate to hard pause after this delay if ignored
     const [nudgeVisible, setNudgeVisible] = useState(false)
     const [gateActive, setGateActive] = useState(false)
-    const [gateAtNextBoundary, setGateAtNextBoundary] = useState(false)
     const lastPromptBoundaryRef = useRef<number>(-1)
     const nudgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const fadeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const isFadingRef = useRef(false)
+    // Nudge-targeted segment (previous completed segment)
+    const lastCompletedSegmentRef = useRef<number>(-1)
+    const currentNudgeSegmentIdxRef = useRef<number | null>(null)
+    const nudgeBoundaryDelayMs = 500
 
     const fadeOutAndPause = (durMs = 400) => {
         const el = mainRef.current
@@ -62,35 +70,21 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     }
 
     // Segment boundary helpers (based on gateIntervalMs)
-    const getBoundaryIndex = (ms: number) => Math.max(0, Math.floor(ms / gateIntervalMs))
-    const getSegmentForMs = (ms: number) => {
-        const idx = getBoundaryIndex(ms)
+    const getSegmentForMs = useCallback((ms: number) => {
+        const idx = Math.max(0, Math.floor(ms / gateIntervalMs))
         const startMs = idx * gateIntervalMs
         const endMs = Math.min((idx + 1) * gateIntervalMs, durationMs || Number.POSITIVE_INFINITY)
         return { idx, startMs, endMs }
-    }
+    }, [gateIntervalMs, durationMs])
 
-    // Emit structural segment markers so empty segments are captured
-    const emittedSegmentsRef = useRef<Set<number>>(new Set())
-    const emitSegmentMarker = (idx: number) => {
-        if (!Number.isFinite(idx) || idx < 0) return
-        if (emittedSegmentsRef.current.has(idx)) return
-        const startMs = idx * gateIntervalMs
-        const endMs = Math.min((idx + 1) * gateIntervalMs, durationMs || Number.POSITIVE_INFINITY)
-        emittedSegmentsRef.current.add(idx)
-        segmentMarkersRef.current.push({
-            type: 'SEGMENT',
-            payload: { event: 'SEGMENT', t: startMs, segmentIndex: idx, segmentStartMs: startMs, segmentEndMs: endMs },
-        })
-    }
+    // Segment markers removed: we rely on reactions per segment enforced by gating
 
     // Single-send model: we accumulate locally and send once on ended
     useEffect(() => {
         const handleEarlyExit = async () => {
             if (sentRef.current) return
             sentRef.current = true
-            const events = [...segmentMarkersRef.current, ...localEventsRef.current]
-            segmentMarkersRef.current = []
+            const events = [...localEventsRef.current]
             localEventsRef.current = []
             await sendSessionPayload({ trackId, events })
         }
@@ -119,10 +113,9 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
             if (nudgeTimerRef.current) { clearTimeout(nudgeTimerRef.current); nudgeTimerRef.current = null }
             setNudgeVisible(false)
             setGateActive(false)
-            setGateAtNextBoundary(false)
-            // Reset and emit segment 0 marker (start to first boundary)
-            emittedSegmentsRef.current = new Set()
-            emitSegmentMarker(0)
+            // reset any pending timers
+            lastCompletedSegmentRef.current = -1
+            currentNudgeSegmentIdxRef.current = null
         }
         const onTimeMain = () => setCurrentMs(Math.floor((el.currentTime || 0) * 1000))
         const onPlayMain = () => setIsPlaying(true)
@@ -135,12 +128,8 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         // Autoplay removed to avoid racing with nudge/pause flow
 
         const onEndedMain = async () => {
-            const events = [...segmentMarkersRef.current, ...localEventsRef.current]
-            segmentMarkersRef.current = []
+            const events = [...localEventsRef.current]
             localEventsRef.current = []
-            // Emit final segment marker if missing
-            const lastIdx = Math.max(0, getBoundaryIndex((el.duration || 0) * 1000 - 1))
-            emitSegmentMarker(lastIdx)
             if (!sentRef.current) {
                 sentRef.current = true
                 await sendSessionPayload({ trackId, events })
@@ -155,7 +144,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
             el.removeEventListener('pause', onPauseMain)
             el.removeEventListener('ended', onEndedMain)
         }
-    }, [])
+    }, [trackId])
 
     // Cleanup timers on unmount
     useEffect(() => {
@@ -164,42 +153,37 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         }
     }, [])
 
-    // Boundary-based soft nudge and hard gate
+    // Boundary-based immediate nudge and pause (nudge previous segment)
     useEffect(() => {
         if (!durationMs || durationMs <= 0) return
         const boundaryIndex = Math.floor(currentMs / gateIntervalMs)
         if (boundaryIndex !== lastPromptBoundaryRef.current) {
             lastPromptBoundaryRef.current = boundaryIndex
-            // Emit new segment marker at this boundary
-            emitSegmentMarker(boundaryIndex)
-            // Strict gating: pause every boundary until reaction
-            if (strictGating) {
-                setNudgeVisible(true)
-                setGateActive(true)
-                fadeOutAndPause(400)
-                return
+            // Marker emission removed
+            // Update last completed segment; boundaryIndex marks the start of the new segment
+            const prevIdx = Math.max(0, boundaryIndex - 1)
+            if (boundaryIndex > 0) lastCompletedSegmentRef.current = prevIdx
+            // Show nudge for previous segment, after a short delay to ensure new segment starts playing
+            if (boundaryIndex > 0) {
+                if (nudgeTimerRef.current) { clearTimeout(nudgeTimerRef.current); nudgeTimerRef.current = null }
+                nudgeTimerRef.current = setTimeout(() => {
+                    currentNudgeSegmentIdxRef.current = lastCompletedSegmentRef.current
+                    setNudgeVisible(true)
+                    setGateActive(true)
+                    fadeOutAndPause(400)
+                }, nudgeBoundaryDelayMs)
             }
-            // Soft nudge first
-            setNudgeVisible(true)
-            // Clear any previous timers
-            if (nudgeTimerRef.current) { clearTimeout(nudgeTimerRef.current); nudgeTimerRef.current = null }
-            // Escalate to hard pause at next boundary after timeout
-            nudgeTimerRef.current = setTimeout(() => {
-                setGateAtNextBoundary(true)
-            }, nudgeTimeoutMs)
         }
-        // If we planned to gate at next boundary and we just crossed it, pause
-        if (gateAtNextBoundary && nudgeVisible) {
-            setGateActive(true)
-            setGateAtNextBoundary(false)
-            fadeOutAndPause(400)
-        }
-    }, [currentMs, durationMs, strictGating, gateIntervalMs])
+    }, [currentMs, durationMs, gateIntervalMs, getSegmentForMs])
 
-    const handleReaction = (reaction: -1 | 0 | 1) => {
+    const handleReaction = useCallback((reaction: -1 | 0 | 1) => {
         const eventName: ReactionType = reaction === 1 ? 'LIKE' : reaction === -1 ? 'DISLIKE' : 'NEUTRAL'
         const t = Math.max(0, Math.min(durationMs || 0, currentMs))
-        const seg = getSegmentForMs(t)
+        // Attribute reaction to the previous completed segment if available
+        const targetIdx = currentNudgeSegmentIdxRef.current ?? lastCompletedSegmentRef.current
+        const seg = targetIdx != null && targetIdx >= 0
+            ? { idx: targetIdx, startMs: targetIdx * gateIntervalMs, endMs: Math.min((targetIdx + 1) * gateIntervalMs, durationMs || Number.POSITIVE_INFINITY) }
+            : getSegmentForMs(t)
         localEventsRef.current.push({
             type: eventName,
             payload: {
@@ -213,11 +197,11 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         // Update gating state
         setNudgeVisible(false)
         setGateActive(false)
-        setGateAtNextBoundary(false)
+        currentNudgeSegmentIdxRef.current = null
         if (nudgeTimerRef.current) { clearTimeout(nudgeTimerRef.current); nudgeTimerRef.current = null }
         // Resume playback if we paused for gating
         if (mainRef.current && mainRef.current.paused) { try { void mainRef.current.play() } catch { } }
-    }
+    }, [currentMs, durationMs, gateIntervalMs])
 
     // no-op
 
@@ -229,7 +213,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         }
         addEventListener('keydown', onKey)
         return () => removeEventListener('keydown', onKey)
-    }, [])
+    }, [handleReaction])
 
     return (
         <div className="min-h-screen w-full flex items-center justify-center">
@@ -310,7 +294,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                         onTogglePlay={async () => {
                             const el = mainRef.current; if (!el) return;
                             // Prevent resuming playback while gating is active
-                            if (el.paused && (gateActive || (strictGating && nudgeVisible))) {
+                            if (el.paused && (gateActive || nudgeVisible)) {
                                 setNudgeVisible(true); setGateActive(true); return;
                             }
                             if (el.paused) { try { await el.play() } catch { } } else { el.pause() }

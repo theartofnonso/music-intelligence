@@ -51,10 +51,15 @@ export default function AudioPlayerImproved({
 
   // Wavesurfer waveform
   const waveRef = React.useRef<HTMLDivElement | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const wsRef = React.useRef<any>(null);
+  type WaveHandle = {
+    load: (src: string) => void
+    on: (event: string, cb: (arg: number) => void) => void
+    destroy?: () => void
+    seekTo?: (ratio: number) => void
+  }
+  const wsRef = React.useRef<WaveHandle | null>(null);
   React.useEffect(() => {
-    let ws: any;
+    let ws: WaveHandle | null = null;
     let cancelled = false;
     async function setup() {
       if (!waveRef.current || !src) return;
@@ -69,7 +74,7 @@ export default function AudioPlayerImproved({
         height: 54,
         responsive: true,
         interact: true,
-      });
+      }) as WaveHandle;
       wsRef.current = ws;
       ws.load(src);
       ws.on('seek', (progress: number) => {
@@ -80,14 +85,14 @@ export default function AudioPlayerImproved({
     setup();
     return () => {
       cancelled = true;
-      try { ws?.destroy(); } catch { }
+      try { ws?.destroy?.(); } catch { }
       wsRef.current = null;
     };
-  }, [src]);
+  }, [src, durationMs, onSeek]);
 
   // Sync external playback position to waveform cursor
   React.useEffect(() => {
-    const ws = wsRef.current as { seekTo?: (ratio: number) => void } | null;
+    const ws = wsRef.current;
     if (!ws || !durationMs || durationMs <= 0) return;
     const ratio = clamp(currentMs / durationMs, 0, 1);
     try { if (ws && typeof ws.seekTo === 'function') ws.seekTo(ratio); } catch { }

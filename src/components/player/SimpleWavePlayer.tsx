@@ -1,15 +1,17 @@
 "use client"
 
 import React from 'react'
-import { Play, Pause } from 'lucide-react'
+// import { Play, Pause } from 'lucide-react'
 
 export default function SimpleWavePlayer({ src }: { src: string }) {
   const waveRef = React.useRef<HTMLDivElement | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const wsRef = React.useRef<any>(null)
   const stopTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Setup Wavesurfer (waveform only)
   React.useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let ws: any
     let cancelled = false
     async function setup() {
@@ -45,13 +47,14 @@ export default function SimpleWavePlayer({ src }: { src: string }) {
         stopTimerRef.current = setTimeout(() => { try { wsRef.current.pause() } catch {} }, Math.max(200, durMs))
       }
       window.addEventListener('play-snippet', onPlaySnippet as EventListener)
-      ;(ws as any).__onPlaySnippet = onPlaySnippet
+      ;(ws as unknown as { __onPlaySnippet?: EventListener }).__onPlaySnippet = onPlaySnippet as EventListener
     }
     setup()
     return () => {
       cancelled = true
-      if ((ws as any)?.__onPlaySnippet) {
-        window.removeEventListener('play-snippet', (ws as any).__onPlaySnippet)
+      const handler = (ws as unknown as { __onPlaySnippet?: EventListener }).__onPlaySnippet
+      if (handler) {
+        window.removeEventListener('play-snippet', handler)
       }
       try { ws?.destroy() } catch {}
       wsRef.current = null
