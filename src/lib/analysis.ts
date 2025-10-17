@@ -28,12 +28,15 @@ export function generateSegmentInsights(events: RawEvent[]): InsightsResult {
         const counts = {
             LIKE: 0,
             DISLIKE: 0,
-            NEUTRAL: 0
+            NEUTRAL: 0,
         }
         
         for (const event of segEvents) {
             const type = event.type.toUpperCase()
-            if (type in counts) {
+            if (type === 'SUPER_LIKE') {
+                // Treat super like as double like without separate surfacing
+                counts.LIKE += 2
+            } else if (type in counts) {
                 counts[type as keyof typeof counts]++
             }
         }
