@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Play, Pause } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -40,10 +40,21 @@ export default function ClientEventsBreakdown({ src, events: initialEvents }: { 
               {events.map((e, i) => {
                 const tsMs = e.positionMs ?? e.payload?.t ?? 0
                 const t = fmtMs(tsMs)
+                const segStart = typeof e.payload?.segmentStartMs === 'number' ? e.payload.segmentStartMs : undefined
+                const segEnd = typeof e.payload?.segmentEndMs === 'number' ? e.payload.segmentEndMs : undefined
+                const segStr = segStart != null && segEnd != null ? `Seg ${fmtMs(segStart)}–${fmtMs(segEnd)}` : ''
                 let details = '—'
-                if (e.type === 'LIKE' || e.type === 'DISLIKE' || e.type === 'NEUTRAL') details = e.payload?.event ?? e.type
-                if (e.type === 'SKIP') details = `→ ${fmtMs(e.payload?.toMs ?? 0)}`
-                if (e.type === 'REPLAY') details = `← ${fmtMs(e.payload?.toMs ?? 0)}`
+                if (e.type === 'LIKE' || e.type === 'DISLIKE' || e.type === 'NEUTRAL') {
+                  details = segStr || (e.payload?.event ?? e.type)
+                }
+                if (e.type === 'SKIP') {
+                  const toMs = e.payload?.toMs ?? 0
+                  details = [`→ ${fmtMs(toMs)}`, segStr].filter(Boolean).join(' • ')
+                }
+                if (e.type === 'REPLAY') {
+                  const toMs = e.payload?.toMs ?? 0
+                  details = [`← ${fmtMs(toMs)}`, segStr].filter(Boolean).join(' • ')
+                }
                 return (
                   <div key={`ev-${i}`} className="grid grid-cols-4 items-center px-3 py-2">
                     <div>
@@ -56,15 +67,16 @@ export default function ClientEventsBreakdown({ src, events: initialEvents }: { 
                         onClick={() => {
                           const el = audioRef.current
                           if (!el) return
-                          if (playingIndex === i && isPlaying) { try { el.pause() } catch {}; return }
+                          if (playingIndex === i && isPlaying) { try { el.pause() } catch { }; return }
                           if (stopTimerRef.current) clearTimeout(stopTimerRef.current)
-                          const startMs = Math.max(0, tsMs - 1000)
-                          const endMs = startMs + 3000
+                          // Prefer preview from the segment start when available
+                          const startMs = typeof segStart === 'number' ? segStart : Math.max(0, tsMs - 1000)
+                          const endMs = typeof segEnd === 'number' ? Math.min(segEnd, startMs + 4000) : startMs + 3000
                           el.currentTime = startMs / 1000
                           void el.play()
                           setPlayingIndex(i)
                           setIsPlaying(true)
-                          stopTimerRef.current = setTimeout(() => { try { el.pause() } catch {} }, Math.max(500, endMs - startMs))
+                          stopTimerRef.current = setTimeout(() => { try { el.pause() } catch { } }, Math.max(500, endMs - startMs))
                           window.dispatchEvent(new CustomEvent('play-snippet', { detail: { ms: startMs, durMs: endMs - startMs } }))
                         }}
                       >
@@ -76,7 +88,7 @@ export default function ClientEventsBreakdown({ src, events: initialEvents }: { 
                       </Button>
                     </div>
                     <div>{t}</div>
-                    <div>{e.type.replace('session_', '').toUpperCase()}</div>
+                    <div>{(e.payload?.event ?? e.type).toString().toUpperCase()}</div>
                     <div>{details}</div>
                   </div>
                 )

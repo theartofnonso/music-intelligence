@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { Pause, Play, ThumbsUp, ThumbsDown, RotateCcw, SkipForward } from "lucide-react";
+import { Pause, Play, RotateCcw, SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button"
 
 export default function AudioPlayerImproved({
@@ -10,8 +10,6 @@ export default function AudioPlayerImproved({
   durationMs = 0,
   isPlaying = false,
   onTogglePlay,
-  onDislike,
-  onLike,
   onSeek,
   disabledControls = false,
 }: {
@@ -20,8 +18,6 @@ export default function AudioPlayerImproved({
   durationMs?: number;
   isPlaying?: boolean;
   onTogglePlay?: () => void;
-  onDislike?: () => void;
-  onLike?: () => void;
   onSeek?: (ms: number) => void;
   disabledControls?: boolean;
 }) {
@@ -137,18 +133,6 @@ export default function AudioPlayerImproved({
           <RotateCcw className="h-5 w-5" />
         </Button>
         <Button
-          variant="outline"
-          size="icon"
-          aria-label="Dislike"
-          onClick={() => { flashPressed('dislike'); onDislike?.(); }}
-          aria-pressed={pressed.dislike}
-          className={`rounded-full active:scale-95 ${pressed.dislike ? 'bg-red-500 text-white' : ''}`}
-          disabled={disabledControls}
-        >
-          <ThumbsDown className="h-5 w-5" />
-        </Button>
-
-        <Button
           variant="default"
           size="icon-lg"
           aria-label={isPlaying ? "Pause" : "Play"}
@@ -157,18 +141,6 @@ export default function AudioPlayerImproved({
           disabled={disabledControls}
         >
           {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
-        </Button>
-
-        <Button
-          variant="outline"
-          size="icon"
-          aria-label="Like"
-          onClick={() => { flashPressed('like'); onLike?.(); }}
-          aria-pressed={pressed.like}
-          className={`rounded-full active:scale-95 ${pressed.like ? 'bg-emerald-500 text-white' : ''}`}
-          disabled={disabledControls}
-        >
-          <ThumbsUp className="h-5 w-5" />
         </Button>
         <Button
           variant="outline"

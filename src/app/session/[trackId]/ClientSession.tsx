@@ -26,7 +26,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
 
     // Gating and prompting state
     const strictGating = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_STRICT_GATING === '1'
-    const gateIntervalMs = 20_000 // approximate phrase/section boundary
+    const gateIntervalMs = 30_000 // approximate phrase/section boundary
     const nudgeTimeoutMs = 2_500 // escalate to hard pause after this delay if ignored
     const [nudgeVisible, setNudgeVisible] = useState(false)
     const [gateActive, setGateActive] = useState(false)
@@ -36,6 +36,8 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     const nudgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const fadeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const isFadingRef = useRef(false)
+    const [selectedReaction, setSelectedReaction] = useState<number | null>(null)
+    const reactionFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     const fadeOutAndPause = (durMs = 400) => {
         const el = mainRef.current
@@ -106,9 +108,9 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         el.addEventListener('timeupdate', onTimeMain)
         el.addEventListener('play', onPlayMain)
         el.addEventListener('pause', onPauseMain)
-        // Try to start playback (uninterrupted) when metadata is ready
-        const tryPlay = async () => { try { await el.play() } catch { } }
-        el.addEventListener('loadeddata', tryPlay, { once: true })
+        
+        // Autoplay removed to avoid racing with nudge/pause flow
+        
         const onEndedMain = async () => {
             const events = localEventsRef.current.slice()
             localEventsRef.current = []
@@ -118,6 +120,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
             }
         }
         el.addEventListener('ended', onEndedMain)
+
         return () => {
             el.removeEventListener('loadedmetadata', onMeta)
             el.removeEventListener('timeupdate', onTimeMain)
@@ -131,6 +134,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     useEffect(() => {
         return () => {
             if (nudgeTimerRef.current) { clearTimeout(nudgeTimerRef.current); nudgeTimerRef.current = null }
+            if (reactionFlashTimerRef.current) { clearTimeout(reactionFlashTimerRef.current); reactionFlashTimerRef.current = null }
         }
     }, [])
 
@@ -165,6 +169,10 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     }, [currentMs, durationMs, strictGating])
 
     const handleReaction = (reaction: -1 | 0 | 1) => {
+        // Show temporary pressed state
+        setSelectedReaction(reaction)
+        if (reactionFlashTimerRef.current) { clearTimeout(reactionFlashTimerRef.current); reactionFlashTimerRef.current = null }
+        reactionFlashTimerRef.current = setTimeout(() => setSelectedReaction(null), 600)
         const eventName: ReactionType = reaction === 1 ? 'LIKE' : reaction === -1 ? 'DISLIKE' : 'NEUTRAL'
         const t = Math.max(0, Math.min(durationMs || 0, currentMs))
         const seg = getSegmentForMs(t)
@@ -188,6 +196,13 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         if (mainRef.current && mainRef.current.paused) { try { void mainRef.current.play() } catch { } }
     }
 
+    // Reset pressed state whenever the overlay opens/closes
+    useEffect(() => {
+        if (!nudgeVisible && !gateActive) {
+            setSelectedReaction(null)
+        }
+    }, [nudgeVisible, gateActive])
+
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             if (e.key === 'ArrowLeft') handleReaction(-1)
@@ -201,31 +216,38 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     return (
         <div className="min-h-screen w-full flex items-center justify-center">
             <div className="space-y-3 w-full max-w-[560px] px-4">
-                {/* Reaction bar: shown for nudges or active gate */}
-                {(nudgeVisible || gateActive) && (
-                    <div className="mb-3 rounded-md border bg-background p-3">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                            <p className="text-xs text-muted-foreground">Share a quick reaction</p>
-                            <div className="flex w-full gap-2 sm:w-auto">
-                                <button
-                                    className="flex-1 rounded-md border px-3 py-2 text-xs hover:bg-accent sm:flex-none cursor-pointer"
-                                    onClick={() => handleReaction(-1)}
-                                    aria-label="Dislike"
-                                >Dislike</button>
-                                <button
-                                    className="flex-1 rounded-md border px-3 py-2 text-xs hover:bg-accent sm:flex-none cursor-pointer"
-                                    onClick={() => handleReaction(0)}
-                                    aria-label="Neutral"
-                                >Neutral</button>
-                                <button
-                                    className="flex-1 rounded-md border px-3 py-2 text-xs hover:bg-accent sm:flex-none cursor-pointer"
-                                    onClick={() => handleReaction(1)}
-                                    aria-label="Like"
-                                >Like</button>
-                            </div>
-                        </div>
-                    </div>
-                )}
+				{/* Reaction overlay: blur background and focus the prompt */}
+				{(nudgeVisible || gateActive) && (
+					<div className="fixed inset-0 z-50 bg-background/60 backdrop-blur-sm" role="dialog" aria-modal="true">
+						<div className="absolute inset-0 grid place-items-center p-4">
+							<div className="w-full max-w-md rounded-md border bg-background p-4 shadow-lg">
+								<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+									<p className="text-xs text-muted-foreground">Share a quick reaction</p>
+									<div className="flex w-full gap-2 sm:w-auto">
+										<button
+											className={`flex-1 rounded-md border px-3 py-2 text-xs sm:flex-none cursor-pointer hover:bg-accent ${selectedReaction === -1 ? 'bg-destructive text-white' : ''}`}
+											onClick={() => handleReaction(-1)}
+											aria-pressed={selectedReaction === -1}
+											aria-label="Dislike"
+										>Dislike</button>
+										<button
+											className={`flex-1 rounded-md border px-3 py-2 text-xs sm:flex-none cursor-pointer hover:bg-accent ${selectedReaction === 0 ? 'bg-secondary' : ''}`}
+											onClick={() => handleReaction(0)}
+											aria-pressed={selectedReaction === 0}
+											aria-label="Neutral"
+										>Neutral</button>
+										<button
+											className={`flex-1 rounded-md border px-3 py-2 text-xs sm:flex-none cursor-pointer hover:bg-accent ${selectedReaction === 1 ? 'bg-emerald-500 text-white' : ''}`}
+											onClick={() => handleReaction(1)}
+											aria-pressed={selectedReaction === 1}
+											aria-label="Like"
+										>Like</button>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				)}
                 <div className="rounded p-4 text-center">
                     <AudioPlayer
                         src={src}
@@ -269,8 +291,6 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                             // Auto-play after seek even when nudge is visible
                             try { void el.play() } catch { }
                         }}
-                        onDislike={() => handleReaction(-1)}
-                        onLike={() => handleReaction(1)}
                         isPlaying={isPlaying}
                         onTogglePlay={async () => {
                             const el = mainRef.current; if (!el) return;
