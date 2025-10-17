@@ -84,9 +84,9 @@ alter table public.session enable row level security;
 -- Base grants so roles can access schema
 grant usage on schema public to anon, authenticated;
 
--- Track table: only authenticated can CRUD
-grant select, insert, update, delete on public.track to authenticated;
-revoke all on public.track from anon;
+-- Track table grants
+grant select on public.track to anon, authenticated;
+grant insert, update, delete on public.track to authenticated;
 
 -- Session table: open (read + insert for everyone)
 grant select, insert on public.session to anon, authenticated;
@@ -110,11 +110,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'track' AND policyname = 'track_select_owner'
+    WHERE schemaname = 'public' AND tablename = 'track' AND policyname = 'track_select_public'
   ) THEN
-    CREATE POLICY track_select_owner ON public.track
-      FOR SELECT TO authenticated
-      USING (owner_id = auth.uid());
+    CREATE POLICY track_select_public ON public.track
+      FOR SELECT TO anon, authenticated
+      USING (true);
   END IF;
 END $$;
 

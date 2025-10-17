@@ -3,10 +3,12 @@ import ClientEventsBreakdown from './ClientEventsBreakdown'
 
 async function fetchTrack(trackId: string) {
     const supabase = await createClient()
+    const { data: user } = await supabase.auth.getUser()
     const { data, error } = await supabase
         .from('track')
         .select('id,title,artist,storage_path')
         .eq('id', trackId)
+        .eq('owner_id', user.user?.id ?? '')
         .maybeSingle()
     if (error) throw error
     return data
