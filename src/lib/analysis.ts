@@ -2,7 +2,6 @@ export type SegmentPayload = { t?: number; segmentIndex?: number; segmentStartMs
 export type RawEvent = { type: string; positionMs?: number; payload?: SegmentPayload }
 
 export type InsightsResult = {
-    segments: Record<number, string[]>
     badges: Record<number, string[]>
 }
 
@@ -21,8 +20,6 @@ export function generateSegmentInsights(events: RawEvent[]): InsightsResult {
         if (!bySeg.has(idx)) bySeg.set(idx, [])
         bySeg.get(idx)!.push(e)
     }
-    const segments: Record<number, string[]> = {}
-    
     // Track counts per segment for overall insights
     const segmentCounts = new Map<number, { LIKE: number; DISLIKE: number; NEUTRAL: number }>()
     
@@ -43,39 +40,7 @@ export function generateSegmentInsights(events: RawEvent[]): InsightsResult {
         
         segmentCounts.set(idx, counts)
         
-        const total = Object.values(counts).reduce((sum, count) => sum + count, 0)
-        if (total === 0) {
-            segments[idx] = []
-            continue
-        }
-        
-        // Find dominant category with deterministic tie-breaking
-        const maxCount = Math.max(...Object.values(counts))
-        const tied: EventCategory[] = (Object.entries(counts)
-            .filter(([, count]) => count === maxCount)
-            .map(([k]) => k as EventCategory))
-        const dominantType = DOMINANCE_ORDER.find((t) => tied.includes(t))
-        
-        if (!dominantType || maxCount === 0) {
-            segments[idx] = []
-            continue
-        }
-        
-        // Generate single insight for the most dominant action
-        let insight = ''
-        switch (dominantType) {
-            case 'LIKE':
-                insight = `Listeners liked this part of the song`
-                break
-            case 'DISLIKE':
-                insight = `Listeners disliked this part of the song`
-                break
-            case 'NEUTRAL':
-                insight = `Listeners had neutral engagement with this part of the song`
-                break
-        }
-        
-        segments[idx] = insight ? [insight] : []
+        // keep counts only (no per-segment insight strings)
     }
     
     // Generate badges for segments with most engagement (tie-aware)
@@ -108,7 +73,7 @@ export function generateSegmentInsights(events: RawEvent[]): InsightsResult {
         // No replay-related badges
     }
     
-    return { segments, badges }
+    return { badges }
 }
 
 

@@ -30,7 +30,7 @@ type SegmentInfo = {
 export default function ClientEventsBreakdown({ src, events: initialEvents }: Props) {
   const [events] = useState<RawEvent[]>(initialEvents)
 
-  const { segments: segComments, badges: segmentBadges } = useMemo(() => {
+  const { badges: segmentBadges } = useMemo(() => {
     return generateSegmentInsights(events)
   }, [events])
 
@@ -78,15 +78,7 @@ export default function ClientEventsBreakdown({ src, events: initialEvents }: Pr
               aggregates={{ reactions: seg.reactionsCount, likes: seg.likesCount, neutral: seg.neutralCount, dislikes: seg.dislikesCount }}
               badges={segmentBadges[seg.idx] || []}
             />
-            {!!segComments?.[seg.idx]?.length && (
-              <div className="ml-2 rounded-md border p-2 text-[11px] text-muted-foreground">
-                <ul className="list-disc pl-4 space-y-0.5">
-                  {segComments[seg.idx].map((c, i) => (
-                    <li key={`segc-${seg.idx}-${i}`}>{c}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {/* per-segment comments removed */}
           </div>
         ))}
         {segments.length === 0 && (
