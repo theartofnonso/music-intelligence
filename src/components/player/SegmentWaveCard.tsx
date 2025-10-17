@@ -10,7 +10,7 @@ type Props = {
   endMs: number
   title?: string
   subtitle?: string
-  aggregates?: { lastReaction?: string | null; reactions?: number; skips?: number; replays?: number }
+  aggregates?: { reactions?: number; skips?: number; replays?: number; likes?: number; neutral?: number; dislikes?: number }
 }
 
 // Global single-play bus
@@ -58,7 +58,7 @@ export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregat
       ws.on('audioprocess', (t: number) => {
         const end = playEndRef.current
         if (typeof end === 'number' && t >= end - 0.01) {
-          try { ws?.pause() } catch {}
+          try { ws?.pause() } catch { }
           setIsPlaying(false)
           playEndRef.current = null
         }
@@ -67,7 +67,7 @@ export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregat
     setup()
     return () => {
       cancelled = true
-      try { ws?.unAll?.(); ws?.destroy?.() } catch {}
+      try { ws?.unAll?.(); ws?.destroy?.() } catch { }
       wsRef.current = null
     }
   }, [src])
@@ -78,7 +78,7 @@ export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregat
     const onGlobal = (ev: Event) => {
       const id = (ev as CustomEvent<string>).detail
       if (id !== cardId) {
-        try { wsRef.current?.pause() } catch {}
+        try { wsRef.current?.pause() } catch { }
         setIsPlaying(false)
       }
     }
@@ -86,17 +86,8 @@ export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregat
     return () => window.removeEventListener(GLOBAL_EVENT, onGlobal as EventListener)
   }, [cardId])
 
-  
+
   const durationSec = Math.max(0, (endMs - startMs) / 1000)
-  const describeLast = (r?: string | null) => r === 'LIKE' ? '👍 Likes' : r === 'DISLIKE' ? '👎 Dislikes' : r === 'NEUTRAL' ? '😐 Neutral' : '— None'
-  const reactionClasses = (r?: string | null) =>
-    r === 'LIKE'
-      ? 'border-green-300 bg-green-50 text-green-700'
-      : r === 'DISLIKE'
-      ? 'border-red-300 bg-red-50 text-red-700'
-      : r === 'NEUTRAL'
-      ? 'border-zinc-300 bg-zinc-50 text-zinc-700'
-      : 'border-zinc-200 text-zinc-500'
 
   const handleToggle = async () => {
     const ws = wsRef.current
@@ -104,15 +95,15 @@ export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregat
     const startSec = Math.max(0, (startMs || 0) / 1000)
     const endSec = Math.max(startSec, (endMs || 0) / 1000)
     if (isPlaying) {
-      try { ws.pause() } catch {}
+      try { ws.pause() } catch { }
       setIsPlaying(false)
       playEndRef.current = null
       return
     }
     // Notify others to pause
     window.dispatchEvent(new CustomEvent(GLOBAL_EVENT, { detail: cardId }))
-    try { ws.setTime?.(startSec) } catch {}
-    try { ws.play(startSec, endSec) } catch { try { ws.play() } catch {} }
+    try { ws.setTime?.(startSec) } catch { }
+    try { ws.play(startSec, endSec) } catch { try { ws.play() } catch { } }
     playEndRef.current = endSec
     setIsPlaying(true)
   }
@@ -135,13 +126,15 @@ export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregat
         <span>{Math.max(0, Math.floor(startMs / 1000))}s – {Math.max(0, Math.floor(endMs / 1000))}s ({Math.max(1, Math.round(durationSec))}s)</span>
         {aggregates && (
           <div className="ml-3 flex flex-wrap items-center gap-1">
-            <span className={`rounded border px-2 py-0.5 ${reactionClasses(aggregates.lastReaction)}`}>{describeLast(aggregates.lastReaction)}: {aggregates.reactions ?? 0}</span>
+            <span className="rounded border px-2 py-0.5 border-green-300 bg-green-50 text-green-700">👍 Likes: {aggregates.likes ?? 0}</span>
+            <span className="rounded border px-2 py-0.5 border-zinc-300 bg-zinc-50 text-zinc-700">😐 Neutral: {aggregates.neutral ?? 0}</span>
+            <span className="rounded border px-2 py-0.5 border-red-300 bg-red-50 text-red-700">👎 Dislikes: {aggregates.dislikes ?? 0}</span>
             <span className="rounded border px-2 py-0.5 border-amber-300 bg-amber-50 text-amber-700">⏭️ Skips: {aggregates.skips ?? 0}</span>
             <span className="rounded border px-2 py-0.5 border-blue-300 bg-blue-50 text-blue-700">🔁 Replays: {aggregates.replays ?? 0}</span>
           </div>
         )}
       </div>
-      
+
     </div>
   )
 }

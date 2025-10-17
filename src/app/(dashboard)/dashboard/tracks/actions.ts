@@ -1,32 +1,38 @@
 'use server'
 
+import { generateSegmentInsights } from '@/lib/analysis'
+import type { RawEvent } from '@/lib/analysis'
 import { supabaseServer } from '@/lib/supabaseServer'
 import { revalidatePath } from 'next/cache'
 
+export async function generatePerSegmentInsightsAction(events: RawEvent[]): Promise<Record<number, string[]>> {
+	return await generateSegmentInsights(events)
+}
+
 export async function createTrackAction(formData: FormData) {
-  const title = String(formData.get('title') ?? '') || null
-  const storage_path = String(formData.get('storage_path') ?? '')
-  const artist = (formData.get('artist') as string) || null
-  const duration_ms = formData.get('duration_ms') ? Number(formData.get('duration_ms')) : null
-  if (!storage_path) throw new Error('storage_path required')
-  const { data, error } = await supabaseServer
-    .from('track')
-    .insert({ title, artist, storage_path, duration_ms })
-    .select('id,title,created_at,storage_path')
-    .single()
-  if (error) throw new Error(error.message)
-  revalidatePath('/dashboard/tracks')
-  return data
+	const title = String(formData.get('title') ?? '') || null
+	const storage_path = String(formData.get('storage_path') ?? '')
+	const artist = (formData.get('artist') as string) || null
+	const duration_ms = formData.get('duration_ms') ? Number(formData.get('duration_ms')) : null
+	if (!storage_path) throw new Error('storage_path required')
+	const { data, error } = await supabaseServer
+		.from('track')
+		.insert({ title, artist, storage_path, duration_ms })
+		.select('id,title,created_at,storage_path')
+		.single()
+	if (error) throw new Error(error.message)
+	revalidatePath('/dashboard/tracks')
+	return data
 }
 
 export async function deleteTrackAction(trackId: string) {
-  // Look up storage_path to delete file, then delete the track
-  const { data: t, error: selErr } = await supabaseServer
-    .from('track')
-    .select('storage_path')
-    .eq('id', trackId)
-    .maybeSingle()
-  if (selErr) throw new Error(selErr.message)
+	// Look up storage_path to delete file, then delete the track
+	const { data: t, error: selErr } = await supabaseServer
+		.from('track')
+		.select('storage_path')
+		.eq('id', trackId)
+		.maybeSingle()
+	if (selErr) throw new Error(selErr.message)
 
 	if (t?.storage_path) {
 		// Support both full public URLs and bucket-relative paths like "audio-public/dir/file.mp3"
@@ -50,7 +56,7 @@ export async function deleteTrackAction(trackId: string) {
 			const [b, ...rest] = t.storage_path.split('/')
 			bucket = b || null
 			objectPath = rest.join('/') || null
-      console.log('objectPath', objectPath)
+			console.log('objectPath', objectPath)
 		}
 		if (!bucket || !objectPath) {
 			throw new Error('Failed to resolve storage object path for deletion')
@@ -59,10 +65,8 @@ export async function deleteTrackAction(trackId: string) {
 		if (remErr) throw new Error(`Storage delete failed: ${remErr.message}`)
 	}
 
-  const { error: delErr } = await supabaseServer.from('track').delete().eq('id', trackId)
-  if (delErr) throw new Error(delErr.message)
-  revalidatePath('/dashboard/tracks')
-  return { ok: true }
+	const { error: delErr } = await supabaseServer.from('track').delete().eq('id', trackId)
+	if (delErr) throw new Error(delErr.message)
+	revalidatePath('/dashboard/tracks')
+	return { ok: true }
 }
-
-

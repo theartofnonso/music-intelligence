@@ -22,7 +22,6 @@ export async function generateSegmentInsights(events: RawEvent[]): Promise<Recor
             const { text } = await generateText({
                 model: openai('gpt-4o-mini'),
                 prompt: `You are a music engagement analyst.
-
 Your task: Write ONE concise, neutral sentence describing how listeners engaged, based ONLY on LIKE, DISLIKE, SKIP, REPLAY, and NEUTRAL events.
 
 Requirements:
