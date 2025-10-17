@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetTrigger, useSheet } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Menu } from 'lucide-react'
 
 const navItems = [
@@ -67,11 +67,8 @@ export function AppSidebarLayout({ children }: { children: React.ReactNode }) {
 											<li key={item.url}>
                                                 <SidebarMenuButton isActive={active}>
                                                     <Link href={item.url} className={cn('w-full cursor-pointer', active && 'bg-sidebar-accent')} onClick={() => {
-                                                        // close the sheet after navigation on mobile
-                                                        const el = document.querySelector('[data-state="open"][data-aria-hidden="false"]') as HTMLElement | null
-                                                        // fallback: trigger Escape to close
-                                                        const evt = new KeyboardEvent('keydown', { key: 'Escape' })
-                                                        document.dispatchEvent(evt)
+                                                        // close the sheet after navigation on mobile by simulating Escape
+                                                        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
                                                     }}>
 														<span className="block w-full">{item.title}</span>
 													</Link>
