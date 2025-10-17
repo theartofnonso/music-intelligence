@@ -1,8 +1,8 @@
-import { createClient } from '@/lib/supabase/server'
+import { createSecretClient } from '@/lib/supabase/server'
 import { TracksClient, type Track } from './TracksClient'
 
 async function fetchTracks(): Promise<Track[]> {
-	const supabase = await createClient()
+	const supabase = createSecretClient()
 	const { data, error } = await supabase
         .from('track')
         .select('id,title,created_at')

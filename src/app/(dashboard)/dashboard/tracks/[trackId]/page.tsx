@@ -1,8 +1,8 @@
-import { createClient } from '@/lib/supabase/server'
+import { createSecretClient } from '@/lib/supabase/server'
 import ClientEventsBreakdown from './ClientEventsBreakdown'
 
 async function fetchTrack(trackId: string) {
-    const supabase = await createClient()
+    const supabase = createSecretClient()
     const { data, error } = await supabase
         .from('track')
         .select('id,title,artist,storage_path')
@@ -20,7 +20,7 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
     type ServerEvent = { type: string; positionMs: number; payload?: SegmentPayload }
     let serverEvents: ServerEvent[] = []
     try {
-        const supabase = await createClient()
+        const supabase = createSecretClient()
         const { data, error } = await supabase
             .from('session')
             .select('payload, created_at')
