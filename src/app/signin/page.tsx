@@ -57,7 +57,7 @@ export default function SignInPage() {
             <button
               onClick={handleSendOtp}
               disabled={loading || !email}
-              className="w-full rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
+              className="w-full rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50 cursor-pointer"
             >{loading ? 'Sending…' : 'Send code'}</button>
           </div>
         )}
@@ -74,7 +74,7 @@ export default function SignInPage() {
             <button
               onClick={handleVerifyOtp}
               disabled={loading || !otp}
-              className="w-full rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
+              className="w-full rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50 cursor-pointer"
             >{loading ? 'Verifying…' : 'Verify'}</button>
           </div>
         )}
