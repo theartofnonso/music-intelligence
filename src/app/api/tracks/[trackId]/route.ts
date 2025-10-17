@@ -1,10 +1,10 @@
-import { createSecretClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 
 import type { NextRequest } from 'next/server'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ trackId: string }> }) {
     const { trackId } = await params
-	const supabase = createSecretClient()
+	const supabase = await createClient()
 	const { data, error } = await supabase
 		.from('track')
 		.select('id,title,artist,duration_ms,storage_path')

@@ -57,6 +57,7 @@ create table if not exists public.track (
 	artist text,
 	duration_ms int,
 	storage_path text,
+  owner_id uuid not null references auth.users(id) on delete cascade,
 	created_at timestamptz default now()
 );
 
@@ -71,6 +72,7 @@ create table if not exists public.session (
 -- Indexes & constraints
 -- =====================
 create index if not exists session_track_time_idx on public.session(track_id, created_at);
+create index if not exists track_owner_idx on public.track(owner_id);
 
 -- =====================
 -- Row Level Security & Grants
@@ -90,49 +92,62 @@ revoke all on public.track from anon;
 grant select, insert on public.session to anon, authenticated;
 revoke update, delete on public.session from anon, authenticated;
 
--- Policies (guarded)
--- track policies
+-- Replace broad policies with owner-scoped policies
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'track' AND policyname IN (
+      'track_select_auth','track_insert_auth','track_update_auth','track_delete_auth'
+    )
+  ) THEN
+    EXECUTE 'DROP POLICY IF EXISTS track_select_auth ON public.track';
+    EXECUTE 'DROP POLICY IF EXISTS track_insert_auth ON public.track';
+    EXECUTE 'DROP POLICY IF EXISTS track_update_auth ON public.track';
+    EXECUTE 'DROP POLICY IF EXISTS track_delete_auth ON public.track';
+  END IF;
+END $$;
+
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'track' AND policyname = 'track_select_auth'
+    WHERE schemaname = 'public' AND tablename = 'track' AND policyname = 'track_select_owner'
   ) THEN
-    CREATE POLICY track_select_auth ON public.track
+    CREATE POLICY track_select_owner ON public.track
       FOR SELECT TO authenticated
-      USING (auth.role() = 'authenticated');
+      USING (owner_id = auth.uid());
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'track' AND policyname = 'track_insert_auth'
+    WHERE schemaname = 'public' AND tablename = 'track' AND policyname = 'track_insert_owner'
   ) THEN
-    CREATE POLICY track_insert_auth ON public.track
+    CREATE POLICY track_insert_owner ON public.track
       FOR INSERT TO authenticated
-      WITH CHECK (auth.role() = 'authenticated');
+      WITH CHECK (owner_id = auth.uid());
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'track' AND policyname = 'track_update_auth'
+    WHERE schemaname = 'public' AND tablename = 'track' AND policyname = 'track_update_owner'
   ) THEN
-    CREATE POLICY track_update_auth ON public.track
+    CREATE POLICY track_update_owner ON public.track
       FOR UPDATE TO authenticated
-      USING (auth.role() = 'authenticated');
+      USING (owner_id = auth.uid());
   END IF;
 END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'track' AND policyname = 'track_delete_auth'
+    WHERE schemaname = 'public' AND tablename = 'track' AND policyname = 'track_delete_owner'
   ) THEN
-    CREATE POLICY track_delete_auth ON public.track
+    CREATE POLICY track_delete_owner ON public.track
       FOR DELETE TO authenticated
-      USING (auth.role() = 'authenticated');
+      USING (owner_id = auth.uid());
   END IF;
 END $$;
 

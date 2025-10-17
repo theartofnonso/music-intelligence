@@ -1,6 +1,6 @@
 'use server'
 
-import { createSecretClient } from '@/lib/supabase/server'
+import { createClient, createSecretClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
 export async function createTrackAction(formData: FormData) {
@@ -9,10 +9,14 @@ export async function createTrackAction(formData: FormData) {
 	const artist = (formData.get('artist') as string) || null
 	const duration_ms = formData.get('duration_ms') ? Number(formData.get('duration_ms')) : null
 	if (!storage_path) throw new Error('storage_path required')
+	// Use user client to get user id, then insert with owner_id using service client
+	const userScoped = await createClient()
+	const { data: userData } = await userScoped.auth.getUser()
+	if (!userData?.user) throw new Error('Unauthorized')
 	const supabase = createSecretClient()
 	const { data, error } = await supabase
 		.from('track')
-		.insert({ title, artist, storage_path, duration_ms })
+		.insert({ title, artist, storage_path, duration_ms, owner_id: userData.user.id })
 		.select('id,title,created_at,storage_path')
 		.single()
 	if (error) throw new Error(error.message)

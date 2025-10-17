@@ -1,4 +1,4 @@
-import { createSecretClient } from '@/lib/supabase/server'
+import { createClient, createSecretClient } from '@/lib/supabase/server'
 
 export async function POST(req: Request) {
     const reqId = (globalThis as unknown as { crypto?: { randomUUID?: () => string } }).crypto?.randomUUID?.() ?? String(Date.now())
@@ -18,11 +18,15 @@ export async function POST(req: Request) {
 			return new Response('storage_path required', { status: 400 })
 		}
 
-		const supabase = createSecretClient()
-		const { data, error } = await supabase
+        // Get user id via user-auth client (requires this route to run with user session)
+        const userScoped = await createClient()
+        const { data: userData } = await userScoped.auth.getUser()
+        if (!userData?.user) return new Response('Unauthorized', { status: 401 })
+        const supabase = createSecretClient()
+        const { data, error } = await supabase
 			.from('track')
-			.insert({ title, artist, storage_path, duration_ms: duration_ms ?? null })
-			.select('id,title,artist,storage_path,created_at')
+            .insert({ title, artist, storage_path, duration_ms: duration_ms ?? null, owner_id: userData.user.id })
+            .select('id,title,artist,storage_path,created_at')
 			.single()
 		if (error) {
 			return new Response(error.message, { status: 500 })

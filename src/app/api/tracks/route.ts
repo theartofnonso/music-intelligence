@@ -1,7 +1,7 @@
-import { createSecretClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 
 export async function GET() {
-	const supabase = createSecretClient()
+	const supabase = await createClient()
 	const { data, error } = await supabase
 		.from('track')
 		.select('id,title,artist,storage_path,created_at')
