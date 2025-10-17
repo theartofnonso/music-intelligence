@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from 'react'
-import { generatePerSegmentInsightsAction } from '../actions'
+import { useMemo, useState } from 'react'
+import { generateSegmentInsights } from '@/lib/analysis'
 import { SegmentWaveCard } from '@/components/player/SegmentWaveCard'
 
 type SegmentPayload = { t?: number; segmentIndex?: number; segmentStartMs?: number; segmentEndMs?: number }
@@ -29,24 +29,9 @@ type SegmentInfo = {
 
 export default function ClientEventsBreakdown({ src, events: initialEvents }: Props) {
   const [events] = useState<RawEvent[]>(initialEvents)
-  const [segComments, setSegComments] = useState<Record<number, string[]> | null>(null)
-  const [loadingSegComments, setLoadingSegComments] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      try {
-        setLoadingSegComments(true)
-        const perSeg = await generatePerSegmentInsightsAction(events)
-        if (!cancelled) setSegComments(perSeg ?? {})
-      } catch {
-        // ignore
-      } finally {
-        if (!cancelled) setLoadingSegComments(false)
-      }
-    }
-    load()
-    return () => { cancelled = true }
+  const { segments: segComments, badges: segmentBadges } = useMemo(() => {
+    return generateSegmentInsights(events)
   }, [events])
 
   const segments: SegmentInfo[] = useMemo(() => {
@@ -91,11 +76,9 @@ export default function ClientEventsBreakdown({ src, events: initialEvents }: Pr
               title={`Segment ${seg.idx + 1}`}
               subtitle={`${fmtMs(seg.startMs)}–${fmtMs(seg.endMs)}`}
               aggregates={{ reactions: seg.reactionsCount, skips: seg.skipsInto, replays: seg.replaysInto, likes: seg.likesCount, neutral: seg.neutralCount, dislikes: seg.dislikesCount }}
+              badges={segmentBadges[seg.idx] || []}
             />
-            {loadingSegComments && (
-              <div className="ml-2 rounded-md border p-2 text-[11px] text-muted-foreground">Generating insights…</div>
-            )}
-            {!!segComments?.[seg.idx]?.length && !loadingSegComments && (
+            {!!segComments?.[seg.idx]?.length && (
               <div className="ml-2 rounded-md border p-2 text-[11px] text-muted-foreground">
                 <ul className="list-disc pl-4 space-y-0.5">
                   {segComments[seg.idx].map((c, i) => (

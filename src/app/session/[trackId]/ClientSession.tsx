@@ -292,16 +292,16 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                                 const nextIdx = curSeg.idx + 1
                                 const nextStart = Math.min(nextIdx * gateIntervalMs, Math.max(0, (durationMs || 1) - 1))
                                 toMs = nextStart
-                                const seg = getSegmentForMs(toMs)
+                                // Capture the segment we're skipping FROM (curSeg), not the one we're going TO
                                 localEventsRef.current.push({
                                     type: 'SKIP',
                                     payload: {
                                         toMs,
                                         event: 'SKIP',
                                         t: fromMs,
-                                        segmentIndex: seg.idx,
-                                        segmentStartMs: seg.startMs,
-                                        segmentEndMs: seg.endMs,
+                                        segmentIndex: curSeg.idx,
+                                        segmentStartMs: curSeg.startMs,
+                                        segmentEndMs: curSeg.endMs,
                                     },
                                 })
                             } else if (reqMs < fromMs) {

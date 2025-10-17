@@ -1,13 +1,7 @@
 'use server'
 
-import { generateSegmentInsights } from '@/lib/analysis'
-import type { RawEvent } from '@/lib/analysis'
 import { supabaseServer } from '@/lib/supabaseServer'
 import { revalidatePath } from 'next/cache'
-
-export async function generatePerSegmentInsightsAction(events: RawEvent[]): Promise<Record<number, string[]>> {
-	return await generateSegmentInsights(events)
-}
 
 export async function createTrackAction(formData: FormData) {
 	const title = String(formData.get('title') ?? '') || null

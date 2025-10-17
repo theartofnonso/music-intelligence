@@ -11,12 +11,13 @@ type Props = {
   title?: string
   subtitle?: string
   aggregates?: { reactions?: number; skips?: number; replays?: number; likes?: number; neutral?: number; dislikes?: number }
+  badges?: string[]
 }
 
 // Global single-play bus
 const GLOBAL_EVENT = 'segment-wavecard:play'
 
-export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregates }: Props) {
+export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregates, badges }: Props) {
   const waveRef = React.useRef<HTMLDivElement | null>(null)
   type WaveHandle = {
     load: (src: string) => void
@@ -111,8 +112,33 @@ export function SegmentWaveCard({ src, startMs, endMs, title, subtitle, aggregat
   return (
     <div className="rounded-md border p-3">
       <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          {title && <p className="text-sm font-medium truncate">{title}</p>}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            {title && <p className="text-sm font-medium truncate">{title}</p>}
+            {badges && badges.length > 0 && (
+              <div className="flex gap-1 flex-wrap">
+                {badges.map((badge, i) => {
+                  let badgeClass = ''
+                  if (badge.includes('Liked')) {
+                    badgeClass = 'bg-green-100 text-green-700 border border-green-300'
+                  } else if (badge.includes('Disliked')) {
+                    badgeClass = 'bg-red-100 text-red-700 border border-red-300'
+                  } else if (badge.includes('Skipped')) {
+                    badgeClass = 'bg-amber-100 text-amber-700 border border-amber-300'
+                  } else if (badge.includes('Replayed')) {
+                    badgeClass = 'bg-blue-100 text-blue-700 border border-blue-300'
+                  } else {
+                    badgeClass = 'bg-primary/10 text-primary'
+                  }
+                  return (
+                    <span key={i} className={`rounded-xs px-2 py-0.5 text-[10px] font-medium ${badgeClass}`}>
+                      {badge}
+                    </span>
+                  )
+                })}
+              </div>
+            )}
+          </div>
           {subtitle && <p className="text-[11px] text-muted-foreground">{subtitle}</p>}
         </div>
         <Button variant="outline" size="icon" onClick={handleToggle} aria-label={isPlaying ? 'Pause' : 'Play'}>
