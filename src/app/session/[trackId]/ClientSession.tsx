@@ -212,8 +212,11 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         setGateActive(false)
         currentNudgeSegmentIdxRef.current = null
         if (nudgeTimerRef.current) { clearTimeout(nudgeTimerRef.current); nudgeTimerRef.current = null }
-        // Resume playback if we paused for gating
-        if (mainRef.current && mainRef.current.paused) { try { void mainRef.current.play() } catch { } }
+        // Resume playback if we paused for gating, but do NOT resume after final segment reaction
+        if (!pendingFinalSendRef.current && mainRef.current) {
+            const el = mainRef.current
+            if (el.paused && !el.ended) { try { void el.play() } catch { } }
+        }
         if (pendingFinalSendRef.current && !sentRef.current) {
             pendingFinalSendRef.current = false
             sentRef.current = true
