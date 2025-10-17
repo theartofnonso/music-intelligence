@@ -1,9 +1,10 @@
 "use client"
 
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { SegmentWaveCard } from '@/components/player/SegmentWaveCard'
 
-type RawEvent = { type: string; positionMs?: number; payload?: any }
+type SegmentPayload = { t?: number; segmentIndex?: number; segmentStartMs?: number; segmentEndMs?: number }
+type RawEvent = { type: string; positionMs?: number; payload?: SegmentPayload }
 
 function fmtMs(ms: number) {
   const s = Math.max(0, Math.floor(ms / 1000))
@@ -24,11 +25,6 @@ type SegmentInfo = {
 
 export default function ClientEventsBreakdown({ src, events: initialEvents }: { src: string; events: RawEvent[] }) {
   const [events] = useState<RawEvent[]>(initialEvents)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const [playingKey, setPlayingKey] = useState<string | null>(null)
-  const [isPlaying, setIsPlaying] = useState(false)
 
   const segments: SegmentInfo[] = useMemo(() => {
     const map = new Map<number, SegmentInfo>()

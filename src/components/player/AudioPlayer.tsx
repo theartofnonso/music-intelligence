@@ -24,8 +24,7 @@ export default function AudioPlayerImproved({
 
   const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 
-  const CHUNK_MS = 10_000;
-  // Assumption: step size changed per requirement to 5 seconds (5_000 ms)
+  // Step size for skip/replay controls
   const STEP_MS = 5_000;
 
   const formatMs = (ms: number) => {
@@ -52,6 +51,7 @@ export default function AudioPlayerImproved({
 
   // Wavesurfer waveform
   const waveRef = React.useRef<HTMLDivElement | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const wsRef = React.useRef<any>(null);
   React.useEffect(() => {
     let ws: any;
@@ -87,10 +87,10 @@ export default function AudioPlayerImproved({
 
   // Sync external playback position to waveform cursor
   React.useEffect(() => {
-    const ws = wsRef.current;
+    const ws = wsRef.current as { seekTo?: (ratio: number) => void } | null;
     if (!ws || !durationMs || durationMs <= 0) return;
     const ratio = clamp(currentMs / durationMs, 0, 1);
-    try { ws.seekTo(ratio); } catch { }
+    try { if (ws && typeof ws.seekTo === 'function') ws.seekTo(ratio); } catch { }
   }, [currentMs, durationMs]);
 
   // Transient pressed state for visual feedback

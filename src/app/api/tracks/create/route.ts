@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
 export async function POST(req: Request) {
-	const reqId = (globalThis as any).crypto?.randomUUID?.() ?? String(Date.now())
+    const reqId = (globalThis as unknown as { crypto?: { randomUUID?: () => string } }).crypto?.randomUUID?.() ?? String(Date.now())
 	const startedAt = Date.now()
 
 	try {
@@ -36,8 +36,8 @@ export async function POST(req: Request) {
 		const tookMs = Date.now() - startedAt
 		console.log(`[tracks/create][${reqId}] success`, { track_id: data.track_id, tookMs })
 		return Response.json(data)
-	} catch (err) {
-		console.error(`[tracks/create][${reqId}] unhandled`, err)
+    } catch (err: unknown) {
+        console.error(`[tracks/create][${reqId}] unhandled`, err)
 		return new Response('Internal Server Error', { status: 500 })
 	}
 }

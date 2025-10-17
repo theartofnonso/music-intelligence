@@ -15,7 +15,9 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
     const { trackId } = await params
     const track = await fetchTrack(trackId)
 
-    let serverEvents: any[] = []
+    type SegmentPayload = { t?: number; segmentIndex?: number; segmentStartMs?: number; segmentEndMs?: number }
+    type ServerEvent = { type: string; positionMs: number; payload?: SegmentPayload }
+    let serverEvents: ServerEvent[] = []
     try {
         const { data, error } = await supabaseServer
             .from('session')
@@ -24,12 +26,13 @@ export default async function TrackDetail({ params }: { params: Promise<{ trackI
             .order('created_at', { ascending: true })
             .limit(2000)
         if (error) throw error
-        const rows = (data ?? []) as Array<{ payload: any; created_at: string }>
-        const flat: any[] = []
+        const rows = (data ?? []) as Array<{ payload: { events?: Array<{ type: string; payload?: SegmentPayload }> } | null; created_at: string }>
+        const flat: ServerEvent[] = []
         for (const r of rows) {
-            const events = Array.isArray(r.payload?.events) ? r.payload.events : []
+            const events = Array.isArray(r.payload?.events) ? r.payload?.events ?? [] : []
             for (const e of events) {
-                flat.push({ type: e.type, positionMs: e.payload?.t ?? 0, payload: e.payload ?? null })
+                const t = typeof e.payload?.t === 'number' ? e.payload.t : 0
+                flat.push({ type: e.type, positionMs: t, payload: e.payload })
             }
         }
         serverEvents = flat
