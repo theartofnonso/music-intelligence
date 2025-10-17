@@ -155,7 +155,7 @@ export function TracksClient({ initialTracks }: Props) {
 			</section>
 			{busy && (
 				<div className="fixed inset-0 z-50 grid place-items-center bg-background/60 backdrop-blur-sm">
-					<div className="w-full max-w-sm rounded-md border bg-background p-4 text-center">
+					<div className="w-full max-w-sm rounded-md p-4 text-center">
 						<p className="text-sm font-medium">Uploading…</p>
 						<div className="mt-3">
 							<Progress value={uploadProgress ?? undefined} />
