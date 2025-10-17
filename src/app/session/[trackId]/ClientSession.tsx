@@ -26,7 +26,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
 
     // Gating and prompting state
     const strictGating = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_STRICT_GATING === '1'
-    const gateIntervalMs = 30_000 // approximate phrase/section boundary
+    const [gateIntervalMs, setGateIntervalMs] = useState<number>(30_000)
     const nudgeTimeoutMs = 2_500 // escalate to hard pause after this delay if ignored
     const [nudgeVisible, setNudgeVisible] = useState(false)
     const [gateActive, setGateActive] = useState(false)
@@ -91,6 +91,12 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         const onMeta = () => {
             const ms = Math.floor((el.duration || 0) * 1000)
             setDurationMs(ms)
+            // Dynamically adjust segment size based on total duration
+            // Target about 6 segments, clamp to a reasonable window (10s–40s)
+            const targetSegments = 6
+            const approx = Math.max(1, Math.round(ms / targetSegments))
+            const rounded = Math.max(10_000, Math.min(40_000, Math.round(approx / 1000) * 1000))
+            setGateIntervalMs(rounded)
             // Ensure the first nudge occurs after the first gate interval (not immediately)
             lastPromptBoundaryRef.current = 0
             if (nudgeTimerRef.current) { clearTimeout(nudgeTimerRef.current); nudgeTimerRef.current = null }
@@ -162,7 +168,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
             setGateAtNextBoundary(false)
             fadeOutAndPause(400)
         }
-    }, [currentMs, durationMs, strictGating])
+    }, [currentMs, durationMs, strictGating, gateIntervalMs])
 
     const handleReaction = (reaction: -1 | 0 | 1) => {
         const eventName: ReactionType = reaction === 1 ? 'LIKE' : reaction === -1 ? 'DISLIKE' : 'NEUTRAL'

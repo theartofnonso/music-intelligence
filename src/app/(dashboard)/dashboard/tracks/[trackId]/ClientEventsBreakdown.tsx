@@ -72,8 +72,7 @@ export default function ClientEventsBreakdown({ src, events: initialEvents }: { 
             aggregates={{ lastReaction: seg.lastReaction, reactions: seg.reactionsCount, skips: seg.skipsInto, replays: seg.replaysInto }}
           />
         ))}
-      </section>
-      
+      </section>      
     </div>
   )
 }
