@@ -32,7 +32,6 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     const [gateActive, setGateActive] = useState(false)
     const [gateAtNextBoundary, setGateAtNextBoundary] = useState(false)
     const lastPromptBoundaryRef = useRef<number>(-1)
-    const lastReactionAtMsRef = useRef<number>(0)
     const nudgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const fadeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const isFadingRef = useRef(false)
@@ -187,7 +186,6 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
             },
         })
         // Update gating state
-        lastReactionAtMsRef.current = t
         setNudgeVisible(false)
         setGateActive(false)
         setGateAtNextBoundary(false)
