@@ -130,19 +130,12 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
             const msTotal = Math.max(0, Math.floor((el.duration || 0) * 1000))
             const lastSeg = getSegmentForMs(Math.max(0, msTotal - 1))
             lastCompletedSegmentRef.current = lastSeg.idx
-            if (!segmentsReactedRef.current.has(lastSeg.idx)) {
-                currentNudgeSegmentIdxRef.current = lastSeg.idx
-                pendingFinalSendRef.current = true
-                setNudgeVisible(true)
-                setGateActive(true)
-                return
-            }
-            const events = [...localEventsRef.current]
-            localEventsRef.current = []
-            if (!sentRef.current) {
-                sentRef.current = true
-                await sendSessionPayload({ trackId, events })
-            }
+            // Always nudge after the final segment
+            currentNudgeSegmentIdxRef.current = lastSeg.idx
+            pendingFinalSendRef.current = true
+            setNudgeVisible(true)
+            setGateActive(true)
+            return
         }
         el.addEventListener('ended', onEndedMain)
 
