@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { ThumbsUp, ThumbsDown, Flame, Meh, ArrowUp, Heart } from 'lucide-react'
-import AudioPlayer, { AudioPlayerHandle } from '@/components/player/AudioPlayer'
-import { sendSessionPayloadAction } from '../actions'
+import { ThumbsUp, ThumbsDown, Flame, Meh, ArrowUp, Heart, Check } from 'lucide-react'
+import AudioPlayer from '@/components/player/AudioPlayer'
 import { WavyBackground } from '@/components/ui/wavy-background'
 
 type ReactionType = 'LIKE' | 'DISLIKE' | 'NEUTRAL' | 'LOVE' | 'FIRE'
@@ -25,11 +24,13 @@ type SeekPayload = {
 }
 type SessionEvent = { type: EventType; payload: ReactionPayload | CommentPayload | SeekPayload }
 
-// single-send using server action (no API route)
+// Single-send via simple POST after audio ends
 async function sendSessionPayload(args: { trackId: string; events: SessionEvent[] }) {
     const { trackId, events } = args
     if (!events || (Array.isArray(events) && events.length === 0)) return
-    await sendSessionPayloadAction({ trackId, events })
+    const body = JSON.stringify({ trackId, events })
+    const url = '/api/events/batch'
+    await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body })
 }
 
 export const ClientSession = ({ trackId, src }: { trackId: string; src: string }) => {
@@ -40,11 +41,12 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     // Single timeline; users can seek freely
     const sentRef = useRef(false)
     const [isPlaying, setIsPlaying] = useState(false)
-    const audioRef = useRef<AudioPlayerHandle | null>(null)
-    const ignoreNextSeekRef = useRef(false)
+
+    const [isSending, setIsSending] = useState(false)
+    const [sendThanks, setSendThanks] = useState(false)
 
     const [note, setNote] = useState<string>('')
-    // removed unused seekStepMs
+
     const noteRef = useRef<HTMLTextAreaElement | null>(null)
     const [pressedReaction, setPressedReaction] = useState<-1 | 0 | 1 | 2 | 3 | null>(null)
 
@@ -61,40 +63,6 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     }, [])
 
     const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n))
-
-    const seekToMs = useCallback((toMs: number) => {
-        if (!durationMs) return
-        const fromMs = currentMs
-        const clamped = clamp(toMs, 0, durationMs)
-        // Command the underlying wavesurfer to seek, source of truth
-        try {
-            ignoreNextSeekRef.current = true
-            audioRef.current?.seekToMs(clamped)
-        } catch { }
-        // Local state will be kept in sync via onTimeUpdate/onSeek events
-        localEventsRef.current.push({ type: 'SEEK', payload: { fromMs, toMs: clamped } })
-    }, [durationMs, currentMs])
-
-    // Single-send model: we accumulate locally and send once on ended
-    useEffect(() => {
-        const handleEarlyExit = async () => {
-            if (sentRef.current) return
-            sentRef.current = true
-            const events = [...localEventsRef.current]
-            localEventsRef.current = []
-            await sendSessionPayload({ trackId, events })
-        }
-        addEventListener('pagehide', handleEarlyExit)
-        addEventListener('beforeunload', handleEarlyExit)
-        return () => {
-            removeEventListener('pagehide', handleEarlyExit)
-            removeEventListener('beforeunload', handleEarlyExit)
-        }
-    }, [trackId])
-
-    // Remove hidden audio element integration; duration/currentMs handled by AudioPlayer callbacks
-
-    // No nudge or segment boundaries
 
     const handleReaction = useCallback((reaction: -1 | 0 | 1 | 2 | 3) => {
         const eventName: ReactionType = reaction === 3 ? 'LOVE' : reaction === 2 ? 'FIRE' : reaction === 1 ? 'LIKE' : reaction === -1 ? 'DISLIKE' : 'NEUTRAL'
@@ -136,20 +104,14 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                 <div className="space-y-3 w-full max-w-[560px] px-4">
                     <div className="rounded p-4 text-center">
                         <AudioPlayer
-                            ref={audioRef}
                             src={src}
                             currentMs={currentMs}
                             durationMs={durationMs}
                             isPlaying={isPlaying}
                             onTogglePlay={() => setIsPlaying((p) => !p)}
-                            // Log user-initiated seeks; ignore one programmatic seek echo
+                            // Log user-initiated seeks
                             onSeekToMs={useCallback((ms: number) => {
                                 const nextMs = clamp(ms, 0, durationMs || 0)
-                                if (ignoreNextSeekRef.current) {
-                                    ignoreNextSeekRef.current = false
-                                    setCurrentMs(nextMs)
-                                    return
-                                }
                                 const fromMs = currentMs
                                 setCurrentMs(nextMs)
                                 localEventsRef.current.push({ type: 'SEEK', payload: { fromMs, toMs: nextMs } })
@@ -162,13 +124,31 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                                 sentRef.current = true
                                 const events = [...localEventsRef.current]
                                 localEventsRef.current = []
+                                setIsSending(true)
                                 await sendSessionPayload({ trackId, events })
+                                setSendThanks(true)
                             }}
                         />
-                        {/* No hidden audio element */}
                     </div>
                 </div>
             </div>
+            {isSending && (
+                <div className="fixed inset-0 z-50 grid place-items-center bg-background/70 backdrop-blur-sm" role="status" aria-busy={!sendThanks}>
+                    <div className="flex items-center gap-3 rounded-xl bg-foreground/90 px-4 py-3 text-background shadow-lg">
+                        {sendThanks ? (
+                            <>
+                                <Check className="h-4 w-4" aria-hidden="true" />
+                                <span className="text-sm font-medium" aria-live="polite">Thanks for listening and sharing your reaction.</span>
+                            </>
+                        ) : (
+                            <>
+                                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-background/80 border-r-transparent" aria-hidden="true" />
+                                <span className="text-sm font-medium" aria-live="polite">Sending reaction...</span>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
             {/* Bottom input bar: full-width with reactions (left) and send (right) */}
             <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                 <div className="px-4 py-3">
@@ -252,4 +232,3 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         </>
     )
 }
-// end of file
