@@ -30,10 +30,13 @@ export const WavyBackground = ({
   const [isSafari, setIsSafari] = useState(false)
   const [isClient, setIsClient] = useState(false)
 
-  const noise = createNoise3D()
-  let w: number, h: number, nt: number, i: number, x: number
-  let ctx: CanvasRenderingContext2D | null
-  let canvas: HTMLCanvasElement | null
+  // Instance-scoped refs to avoid shared mutable state across component instances
+  const noiseRef = useRef(createNoise3D())
+  const wRef = useRef(0)
+  const hRef = useRef(0)
+  const ntRef = useRef(0)
+  const ctxRef = useRef<CanvasRenderingContext2D | null>(null)
+  const animationIdRef = useRef<number | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   // Keep latest values without re-initializing the canvas animation
@@ -55,20 +58,15 @@ export const WavyBackground = ({
 
   const init = () => {
     if (!isClient) return
-    canvas = canvasRef.current
+    const canvas = canvasRef.current
     if (!canvas) return
-    ctx = canvas.getContext("2d")
+    const ctx = canvas.getContext("2d")
     if (!ctx) return
-    w = (ctx.canvas.width = canvas.offsetWidth)
-    h = (ctx.canvas.height = canvas.offsetHeight)
+    ctxRef.current = ctx
+    wRef.current = (ctx.canvas.width = canvas.offsetWidth)
+    hRef.current = (ctx.canvas.height = canvas.offsetHeight)
     ctx.filter = `blur(${blurRef.current}px)`
-    nt = 0
-    window.onresize = function () {
-      if (!canvas || !ctx) return
-      w = (ctx.canvas.width = canvas.offsetWidth)
-      h = (ctx.canvas.height = canvas.offsetHeight)
-      ctx.filter = `blur(${blurRef.current}px)`
-    }
+    ntRef.current = 0
     render()
   }
 
@@ -81,15 +79,19 @@ export const WavyBackground = ({
   ]
 
   const drawWave = (n: number) => {
+    const ctx = ctxRef.current
     if (!ctx) return
-    nt += getSpeed()
-    for (i = 0; i < n; i++) {
+    ntRef.current += getSpeed()
+    const w = wRef.current
+    const h = hRef.current
+    const noise = noiseRef.current
+    for (let i = 0; i < n; i++) {
       ctx.beginPath()
       ctx.lineWidth = (waveWidthRef.current ?? 50)
       const currentColors = colorsRef.current && colorsRef.current.length > 0 ? colorsRef.current : defaultColors
       ctx.strokeStyle = currentColors[i % currentColors.length]!
-      for (x = 0; x < w; x += 5) {
-        const y = noise(x / 800, 0.3 * i, nt) * 100
+      for (let x = 0; x < w; x += 5) {
+        const y = noise(x / 800, 0.3 * i, ntRef.current) * 100
         ctx.lineTo(x, y + h * 0.5)
       }
       ctx.stroke()
@@ -97,9 +99,11 @@ export const WavyBackground = ({
     }
   }
 
-  let animationId: number
   const render = () => {
+    const ctx = ctxRef.current
     if (!ctx) return
+    const w = wRef.current
+    const h = hRef.current
     // Transparent background: clear canvas instead of painting
     if ((backgroundFillRef.current || "").toLowerCase() === "transparent") {
       ctx.clearRect(0, 0, w, h)
@@ -111,7 +115,7 @@ export const WavyBackground = ({
     // Draw waves with opacity (stroke alpha)
     ctx.globalAlpha = waveOpacityRef.current || 0.5
     drawWave(5)
-    animationId = requestAnimationFrame(render)
+    animationIdRef.current = requestAnimationFrame(render)
   }
 
   // Initialize once per mount; dynamic values are read from refs
@@ -120,8 +124,28 @@ export const WavyBackground = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isClient])
   useEffect(() => {
-    return () => { if (animationId) cancelAnimationFrame(animationId) }
+    return () => {
+      if (animationIdRef.current) cancelAnimationFrame(animationIdRef.current)
+      animationIdRef.current = null
+    }
   }, [])
+
+  // Attach a resize listener per instance; clean up on unmount
+  useEffect(() => {
+    if (!isClient) return
+    const handleResize = () => {
+      const canvas = canvasRef.current
+      const ctx = ctxRef.current
+      if (!canvas || !ctx) return
+      wRef.current = (ctx.canvas.width = canvas.offsetWidth)
+      hRef.current = (ctx.canvas.height = canvas.offsetHeight)
+      ctx.filter = `blur(${blurRef.current}px)`
+    }
+    window.addEventListener("resize", handleResize)
+    return () => {
+      window.removeEventListener("resize", handleResize)
+    }
+  }, [isClient])
 
   useEffect(() => {
     setIsClient(true)

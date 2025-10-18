@@ -137,6 +137,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                             onSeekToMs={useCallback((ms: number) => { seekToMs(ms) }, [seekToMs])}
                             onTimeUpdate={(ms) => setCurrentMs(ms)}
                             onReady={(durMs) => setDurationMs(durMs)}
+                            onPlayingChange={(playing) => setIsPlaying(playing)}
                             onEnded={async () => {
                                 if (sentRef.current) return
                                 sentRef.current = true

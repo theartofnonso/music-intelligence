@@ -15,6 +15,7 @@ export default function AudioPlayer({
   onTimeUpdate,
   onReady,
   onEnded,
+  onPlayingChange,
 }: {
   src?: string;
   currentMs?: number;
@@ -25,6 +26,7 @@ export default function AudioPlayer({
   onTimeUpdate?: (ms: number) => void;
   onReady?: (durationMs: number) => void;
   onEnded?: () => void;
+  onPlayingChange?: (playing: boolean) => void;
 }) {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   // Keep stable refs to callback props to avoid re-binding WS listeners
@@ -32,11 +34,13 @@ export default function AudioPlayer({
   const onTimeUpdateRef = React.useRef<((ms: number) => void) | undefined>(onTimeUpdate)
   const onReadyRef = React.useRef<((durationMs: number) => void) | undefined>(onReady)
   const onEndedRef = React.useRef<(() => void) | undefined>(onEnded)
+  const onPlayingChangeRef = React.useRef<((playing: boolean) => void) | undefined>(onPlayingChange)
 
   React.useEffect(() => { onSeekToMsRef.current = onSeekToMs }, [onSeekToMs])
   React.useEffect(() => { onTimeUpdateRef.current = onTimeUpdate }, [onTimeUpdate])
   React.useEffect(() => { onReadyRef.current = onReady }, [onReady])
   React.useEffect(() => { onEndedRef.current = onEnded }, [onEnded])
+  React.useEffect(() => { onPlayingChangeRef.current = onPlayingChange }, [onPlayingChange])
   const { wavesurfer } = useWavesurfer({
     container: containerRef,
     height: 54,
@@ -78,12 +82,24 @@ export default function AudioPlayer({
     const onFinishHandler = () => {
       const cb = onEndedRef.current
       if (typeof cb === 'function') cb()
+      const onPlayCb = onPlayingChangeRef.current
+      if (typeof onPlayCb === 'function') onPlayCb(false)
+    }
+    const onPlayHandler = () => {
+      const cb = onPlayingChangeRef.current
+      if (typeof cb === 'function') cb(true)
+    }
+    const onPauseHandler = () => {
+      const cb = onPlayingChangeRef.current
+      if (typeof cb === 'function') cb(false)
     }
     try {
       ws.on?.('seek', onSeekHandler)
       ws.on?.('timeupdate', onTimeHandler)
       ws.on?.('ready', onReadyHandler)
       ws.on?.('finish', onFinishHandler)
+      ws.on?.('play', onPlayHandler)
+      ws.on?.('pause', onPauseHandler)
       ws.on?.('click', () => { try { ws.play?.() } catch { } })
     } catch { }
     return () => {
@@ -92,6 +108,8 @@ export default function AudioPlayer({
         ws.un?.('timeupdate', onTimeHandler)
         ws.un?.('ready', onReadyHandler)
         ws.un?.('finish', onFinishHandler)
+        ws.un?.('play', onPlayHandler)
+        ws.un?.('pause', onPauseHandler)
       } catch { }
     }
   }, [wavesurfer])
