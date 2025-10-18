@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Slider } from '@/components/ui/slider'
-import { Rewind, FastForward, ThumbsUp, ThumbsDown, Flame, Meh, ArrowUp, Heart } from 'lucide-react'
+import { ThumbsUp, ThumbsDown, Flame, Meh, ArrowUp, Heart } from 'lucide-react'
 import AudioPlayer from '@/components/player/AudioPlayer'
 import { sendSessionPayloadAction } from '../actions'
 
@@ -33,8 +32,7 @@ async function sendSessionPayload(args: { trackId: string; events: SessionEvent[
 }
 
 export const ClientSession = ({ trackId, src }: { trackId: string; src: string }) => {
-    // Main player: uninterrupted full-song playback
-    const mainRef = useRef<HTMLAudioElement | null>(null)
+    // Wavesurfer-driven playback (no hidden audio element)
     const [durationMs, setDurationMs] = useState<number>(0)
     const [currentMs, setCurrentMs] = useState<number>(0)
     const localEventsRef = useRef<SessionEvent[]>([])
@@ -62,11 +60,9 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n))
 
     const seekToMs = useCallback((toMs: number) => {
-        const el = mainRef.current
-        if (!el) return
+        if (!durationMs) return
         const fromMs = currentMs
-        const clamped = clamp(toMs, 0, durationMs || 0)
-        try { el.currentTime = clamped / 1000 } catch { }
+        const clamped = clamp(toMs, 0, durationMs)
         setCurrentMs(clamped)
         localEventsRef.current.push({ type: 'SEEK', payload: { fromMs, toMs: clamped } })
     }, [currentMs, durationMs])
@@ -88,39 +84,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         }
     }, [trackId])
 
-    useEffect(() => {
-        const el = mainRef.current
-        if (!el) return
-        const onMeta = () => {
-            const ms = Math.floor((el.duration || 0) * 1000)
-            setDurationMs(ms)
-            setNote('')
-        }
-        const onTimeMain = () => setCurrentMs(Math.floor((el.currentTime || 0) * 1000))
-        const onPlayMain = () => setIsPlaying(true)
-        const onPauseMain = () => setIsPlaying(false)
-        el.addEventListener('loadedmetadata', onMeta)
-        el.addEventListener('timeupdate', onTimeMain)
-        el.addEventListener('play', onPlayMain)
-        el.addEventListener('pause', onPauseMain)
-
-        const onEndedMain = async () => {
-            if (sentRef.current) return
-            sentRef.current = true
-            const events = [...localEventsRef.current]
-            localEventsRef.current = []
-            await sendSessionPayload({ trackId, events })
-        }
-        el.addEventListener('ended', onEndedMain)
-
-        return () => {
-            el.removeEventListener('loadedmetadata', onMeta)
-            el.removeEventListener('timeupdate', onTimeMain)
-            el.removeEventListener('play', onPlayMain)
-            el.removeEventListener('pause', onPauseMain)
-            el.removeEventListener('ended', onEndedMain)
-        }
-    }, [trackId])
+    // Remove hidden audio element integration; duration/currentMs handled by AudioPlayer callbacks
 
     // No nudge or segment boundaries
 
@@ -143,13 +107,6 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         setNote('')
     }, [note, currentMs, durationMs])
 
-    const handleReplay = useCallback(() => {
-        seekToMs(currentMs - seekStepMs)
-    }, [currentMs, seekToMs])
-
-    const handleSkip = useCallback(() => {
-        seekToMs(currentMs + seekStepMs)
-    }, [currentMs, seekToMs])
     // UI
 
     return (<>
@@ -160,39 +117,20 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                         src={src}
                         currentMs={currentMs}
                         durationMs={durationMs}
-                        disabledControls={false}
-                        stepMs={seekStepMs}
                         isPlaying={isPlaying}
-                        onTogglePlay={async () => {
-                            const el = mainRef.current; if (!el) return;
-                            if (el.paused) { try { await el.play() } catch { } } else { el.pause() }
+                        onTogglePlay={() => setIsPlaying((p) => !p)}
+                        onSeekToMs={useCallback((ms: number) => { seekToMs(ms) }, [seekToMs])}
+                        onTimeUpdate={(ms) => setCurrentMs(ms)}
+                        onReady={(durMs) => setDurationMs(durMs)}
+                        onEnded={async () => {
+                            if (sentRef.current) return
+                            sentRef.current = true
+                            const events = [...localEventsRef.current]
+                            localEventsRef.current = []
+                            await sendSessionPayload({ trackId, events })
                         }}
                     />
-                    {/* Seek bar */}
-                    <div className="mt-4">
-                        <Slider
-                            value={[currentMs]}
-                            min={0}
-                            max={Math.max(0, durationMs)}
-                            step={500}
-                            onValueChange={(vals) => {
-                                if (!Array.isArray(vals) || typeof vals[0] !== 'number') return
-                                setCurrentMs(clamp(vals[0], 0, durationMs || 0))
-                            }}
-                            onValueCommit={(vals) => {
-                                if (!Array.isArray(vals) || typeof vals[0] !== 'number') return
-                                seekToMs(vals[0])
-                            }}
-                            aria-label="Seek"
-                        />
-                    </div>
-                    {/* Transport: replay/skip */}
-                    <div className="mt-3 flex items-center justify-center gap-2">
-                        <Button variant="outline" size="sm" onClick={handleReplay} aria-label="Replay 10 seconds"><Rewind className="h-4 w-4" /></Button>
-                        <Button variant="outline" size="sm" onClick={handleSkip} aria-label="Skip 10 seconds"><FastForward className="h-4 w-4" /></Button>
-                    </div>
-                    {/* Hidden player */}
-                    <audio ref={mainRef} src={src} className="hidden" />
+                    {/* No hidden audio element */}
                 </div>
             </div>
         </div>
@@ -262,7 +200,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                         placeholder="Add a short note (optional)"
                         aria-label="Optional note"
                         rows={1}
-                        className="w-full min-h-12 max-h-40 rounded-2xl pl-4 pr-14 py-3 resize-none bg-background border-0 focus:border-0 outline-none focus:outline-none focus:ring-0 focus-visible:ring-0"
+                        className="font-mono w-full min-h-12 max-h-40 rounded-2xl pl-4 pr-14 py-3 resize-none bg-background border-0 focus:border-0 outline-none focus:outline-none focus:ring-0 focus-visible:ring-0"
                     />
                     <Button
                         variant="default"
