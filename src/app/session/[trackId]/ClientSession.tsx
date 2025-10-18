@@ -181,7 +181,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                             aria-label="Dislike"
                             aria-pressed={pressedReaction === -1}
                         >
-                            <ThumbsDown className="h-4 w-4" />
+                            <ThumbsDown className={`h-4 w-4 transition-transform duration-200 ease-out will-change-transform ${pressedReaction === -1 ? 'scale-125 -translate-y-0.5' : 'scale-100'}`} />
                         </Button>
                         <Button
                             variant="outline"
@@ -191,7 +191,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                             aria-label="Neutral"
                             aria-pressed={pressedReaction === 0}
                         >
-                            <Meh className="h-4 w-4" />
+                            <Meh className={`h-4 w-4 transition-transform duration-200 ease-out will-change-transform ${pressedReaction === 0 ? 'scale-125 -translate-y-0.5' : 'scale-100'}`} />
                         </Button>
                         <Button
                             variant="outline"
@@ -201,7 +201,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                             aria-label="Super like"
                             aria-pressed={pressedReaction === 2}
                         >
-                            <Flame className="h-4 w-4" />
+                            <Flame className={`h-4 w-4 transition-transform duration-200 ease-out will-change-transform ${pressedReaction === 2 ? 'scale-125 -translate-y-0.5' : 'scale-100'}`} />
                         </Button>
                         <Button
                             variant="outline"
@@ -211,7 +211,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                             aria-label="Like"
                             aria-pressed={pressedReaction === 1}
                         >
-                            <ThumbsUp className="h-4 w-4" />
+                            <ThumbsUp className={`h-4 w-4 transition-transform duration-200 ease-out will-change-transform ${pressedReaction === 1 ? 'scale-125 -translate-y-0.5' : 'scale-100'}`} />
                         </Button>
                         <Button
                             variant="outline"
@@ -221,7 +221,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                             aria-label="Love"
                             aria-pressed={pressedReaction === 3}
                         >
-                            <Heart className="h-4 w-4" />
+                            <Heart className={`h-4 w-4 transition-transform duration-200 ease-out will-change-transform ${pressedReaction === 3 ? 'scale-125 -translate-y-0.5' : 'scale-100'}`} />
                         </Button>
                     </div>
                     <div className="relative">
