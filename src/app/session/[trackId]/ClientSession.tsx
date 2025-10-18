@@ -1,20 +1,29 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import AudioPlayer from '@/components/player/AudioPlayer'
+import { Button } from '@/components/ui/button'
+import { ThumbsUp, ThumbsDown, Flame, Meh, ArrowUp, Heart } from 'lucide-react'
+import AudioPlayer, { AudioPlayerHandle } from '@/components/player/AudioPlayer'
 import { sendSessionPayloadAction } from '../actions'
+import { WavyBackground } from '@/components/ui/wavy-background'
 
-type ReactionType = 'LIKE' | 'DISLIKE' | 'NEUTRAL' | 'SUPER_LIKE'
-type ActionType = ReactionType
-type SegmentAttribution = {
-    event: ActionType
+type ReactionType = 'LIKE' | 'DISLIKE' | 'NEUTRAL' | 'LOVE' | 'FIRE'
+type EventType = ReactionType | 'COMMENT' | 'SEEK'
+
+type ReactionPayload = {
+    event: ReactionType
     t: number
-    segmentIndex: number
-    segmentStartMs: number
-    segmentEndMs: number
-    toMs?: number
+    comment?: string
 }
-type SessionEvent = { type: ActionType; payload: SegmentAttribution }
+type CommentPayload = {
+    t: number
+    text: string
+}
+type SeekPayload = {
+    fromMs: number
+    toMs: number
+}
+type SessionEvent = { type: EventType; payload: ReactionPayload | CommentPayload | SeekPayload }
 
 // single-send using server action (no API route)
 async function sendSessionPayload(args: { trackId: string; events: SessionEvent[] }) {
@@ -24,61 +33,47 @@ async function sendSessionPayload(args: { trackId: string; events: SessionEvent[
 }
 
 export const ClientSession = ({ trackId, src }: { trackId: string; src: string }) => {
-    // Main player: uninterrupted full-song playback
-    const mainRef = useRef<HTMLAudioElement | null>(null)
+    // Wavesurfer-driven playback (no hidden audio element)
     const [durationMs, setDurationMs] = useState<number>(0)
     const [currentMs, setCurrentMs] = useState<number>(0)
     const localEventsRef = useRef<SessionEvent[]>([])
-    // Structural segment markers no longer needed (gating enforces reactions)
+    // Single timeline; users can seek freely
     const sentRef = useRef(false)
     const [isPlaying, setIsPlaying] = useState(false)
+    const audioRef = useRef<AudioPlayerHandle | null>(null)
+    const ignoreNextSeekRef = useRef(false)
 
-    // Gating and prompting state
-    const [gateIntervalMs, setGateIntervalMs] = useState<number>(30_000)
-    const [nudgeVisible, setNudgeVisible] = useState(false)
-    const [gateActive, setGateActive] = useState(false)
-    const lastPromptBoundaryRef = useRef<number>(-1)
-    const nudgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const fadeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-    const isFadingRef = useRef(false)
-    // Nudge-targeted segment (previous completed segment)
-    const lastCompletedSegmentRef = useRef<number>(-1)
-    const currentNudgeSegmentIdxRef = useRef<number | null>(null)
-    const segmentsReactedRef = useRef<Set<number>>(new Set())
-    const pendingFinalSendRef = useRef(false)
+    const [note, setNote] = useState<string>('')
+    // removed unused seekStepMs
+    const noteRef = useRef<HTMLTextAreaElement | null>(null)
+    const [pressedReaction, setPressedReaction] = useState<-1 | 0 | 1 | 2 | 3 | null>(null)
 
-    const fadeOutAndPause = (durMs = 400) => {
-        const el = mainRef.current
+    const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
         if (!el) return
-        if (isFadingRef.current) return
-        isFadingRef.current = true
-        const startVol = Math.max(0, Math.min(1, el.volume || 1))
-        const steps = Math.max(1, Math.floor(durMs / 40))
-        let i = 0
-        if (fadeTimerRef.current) { clearInterval(fadeTimerRef.current); fadeTimerRef.current = null }
-        fadeTimerRef.current = setInterval(() => {
-            i += 1
-            const ratio = Math.max(0, Math.min(1, 1 - i / steps))
-            try { el.volume = startVol * ratio } catch { }
-            if (i >= steps) {
-                if (fadeTimerRef.current) { clearInterval(fadeTimerRef.current); fadeTimerRef.current = null }
-                try { el.pause() } catch { }
-                // restore volume immediately for next resume
-                try { el.volume = startVol } catch { }
-                isFadingRef.current = false
-            }
-        }, 40)
-    }
+        el.style.height = '0px'
+        const next = Math.min(200, el.scrollHeight)
+        el.style.height = `${next}px`
+    }, [])
 
-    // Segment boundary helpers (based on gateIntervalMs)
-    const getSegmentForMs = useCallback((ms: number) => {
-        const idx = Math.max(0, Math.floor(ms / gateIntervalMs))
-        const startMs = idx * gateIntervalMs
-        const endMs = Math.min((idx + 1) * gateIntervalMs, durationMs || Number.POSITIVE_INFINITY)
-        return { idx, startMs, endMs }
-    }, [gateIntervalMs, durationMs])
+    const flashReaction = useCallback((r: -1 | 0 | 1 | 2 | 3, ms = 200) => {
+        setPressedReaction(r)
+        window.setTimeout(() => setPressedReaction(null), ms)
+    }, [])
 
-    // Segment markers removed: we rely on reactions per segment enforced by gating
+    const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n))
+
+    const seekToMs = useCallback((toMs: number) => {
+        if (!durationMs) return
+        const fromMs = currentMs
+        const clamped = clamp(toMs, 0, durationMs)
+        // Command the underlying wavesurfer to seek, source of truth
+        try {
+            ignoreNextSeekRef.current = true
+            audioRef.current?.seekToMs(clamped)
+        } catch { }
+        // Local state will be kept in sync via onTimeUpdate/onSeek events
+        localEventsRef.current.push({ type: 'SEEK', payload: { fromMs, toMs: clamped } })
+    }, [durationMs, currentMs])
 
     // Single-send model: we accumulate locally and send once on ended
     useEffect(() => {
@@ -97,190 +92,164 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         }
     }, [trackId])
 
-    useEffect(() => {
-        const el = mainRef.current
-        if (!el) return
-        const onMeta = () => {
-            const ms = Math.floor((el.duration || 0) * 1000)
-            setDurationMs(ms)
-            // Dynamically adjust segment size based on total duration
-            // Target about 6 segments, clamp to a reasonable window (10s–40s)
-            const targetSegments = 6
-            const approx = Math.max(1, Math.round(ms / targetSegments))
-            const rounded = Math.max(10_000, Math.min(40_000, Math.round(approx / 1000) * 1000))
-            setGateIntervalMs(rounded)
-            // Ensure the first nudge occurs after the first gate interval (not immediately)
-            lastPromptBoundaryRef.current = 0
-            if (nudgeTimerRef.current) { clearTimeout(nudgeTimerRef.current); nudgeTimerRef.current = null }
-            setNudgeVisible(false)
-            setGateActive(false)
-            // reset any pending timers
-            lastCompletedSegmentRef.current = -1
-            currentNudgeSegmentIdxRef.current = null
-        }
-        const onTimeMain = () => setCurrentMs(Math.floor((el.currentTime || 0) * 1000))
-        const onPlayMain = () => setIsPlaying(true)
-        const onPauseMain = () => setIsPlaying(false)
-        el.addEventListener('loadedmetadata', onMeta)
-        el.addEventListener('timeupdate', onTimeMain)
-        el.addEventListener('play', onPlayMain)
-        el.addEventListener('pause', onPauseMain)
+    // Remove hidden audio element integration; duration/currentMs handled by AudioPlayer callbacks
 
-        const onEndedMain = async () => {
-            const msTotal = Math.max(0, Math.floor((el.duration || 0) * 1000))
-            const lastSeg = getSegmentForMs(Math.max(0, msTotal - 1))
-            lastCompletedSegmentRef.current = lastSeg.idx
-            // Always nudge after the final segment
-            currentNudgeSegmentIdxRef.current = lastSeg.idx
-            pendingFinalSendRef.current = true
-            setNudgeVisible(true)
-            setGateActive(true)
-            return
-        }
-        el.addEventListener('ended', onEndedMain)
+    // No nudge or segment boundaries
 
-        return () => {
-            el.removeEventListener('loadedmetadata', onMeta)
-            el.removeEventListener('timeupdate', onTimeMain)
-            el.removeEventListener('play', onPlayMain)
-            el.removeEventListener('pause', onPauseMain)
-            el.removeEventListener('ended', onEndedMain)
-        }
-    }, [trackId])
-
-    // Cleanup timers on unmount
-    useEffect(() => {
-        return () => {
-            if (nudgeTimerRef.current) { clearTimeout(nudgeTimerRef.current); nudgeTimerRef.current = null }
-        }
-    }, [])
-
-    // Boundary-based immediate nudge and pause (nudge previous segment)
-    useEffect(() => {
-        if (!durationMs || durationMs <= 0) return
-        const boundaryIndex = Math.floor(currentMs / gateIntervalMs)
-        if (boundaryIndex !== lastPromptBoundaryRef.current) {
-            lastPromptBoundaryRef.current = boundaryIndex
-            // Marker emission removed
-            // Update last completed segment; boundaryIndex marks the start of the new segment
-            const prevIdx = Math.max(0, boundaryIndex - 1)
-            if (boundaryIndex > 0) lastCompletedSegmentRef.current = prevIdx
-            // Show nudge for previous segment, after a short delay to ensure new segment starts playing
-            if (boundaryIndex > 0) {
-                if (nudgeTimerRef.current) { clearTimeout(nudgeTimerRef.current); nudgeTimerRef.current = null }
-                // Always show nudge immediately at boundary
-                currentNudgeSegmentIdxRef.current = lastCompletedSegmentRef.current
-                setNudgeVisible(true)
-                setGateActive(true)
-                fadeOutAndPause(400)
-            }
-        }
-    }, [currentMs, durationMs, gateIntervalMs, getSegmentForMs])
-
-    const handleReaction = useCallback((reaction: -1 | 0 | 1 | 2) => {
-        const eventName: ReactionType = reaction === 2 ? 'SUPER_LIKE' : reaction === 1 ? 'LIKE' : reaction === -1 ? 'DISLIKE' : 'NEUTRAL'
+    const handleReaction = useCallback((reaction: -1 | 0 | 1 | 2 | 3) => {
+        const eventName: ReactionType = reaction === 3 ? 'LOVE' : reaction === 2 ? 'FIRE' : reaction === 1 ? 'LIKE' : reaction === -1 ? 'DISLIKE' : 'NEUTRAL'
         const t = Math.max(0, Math.min(durationMs || 0, currentMs))
-        // Attribute reaction to the previous completed segment if available
-        const targetIdx = currentNudgeSegmentIdxRef.current ?? lastCompletedSegmentRef.current
-        const seg = targetIdx != null && targetIdx >= 0
-            ? { idx: targetIdx, startMs: targetIdx * gateIntervalMs, endMs: Math.min((targetIdx + 1) * gateIntervalMs, durationMs || Number.POSITIVE_INFINITY) }
-            : getSegmentForMs(t)
+        const trimmed = (note || '').trim()
         localEventsRef.current.push({
             type: eventName,
-            payload: {
-                event: eventName,
-                t,
-                segmentIndex: seg.idx,
-                segmentStartMs: seg.startMs,
-                segmentEndMs: seg.endMs,
-            },
+            payload: { event: eventName, t, ...(trimmed ? { comment: trimmed } : {}) },
         })
-        segmentsReactedRef.current.add(seg.idx)
-        // Update gating state
-        setNudgeVisible(false)
-        setGateActive(false)
-        currentNudgeSegmentIdxRef.current = null
-        if (nudgeTimerRef.current) { clearTimeout(nudgeTimerRef.current); nudgeTimerRef.current = null }
-        // Resume playback if we paused for gating, but do NOT resume after final segment reaction
-        if (!pendingFinalSendRef.current && mainRef.current) {
-            const el = mainRef.current
-            if (el.paused && !el.ended) { try { void el.play() } catch { } }
-        }
-        if (pendingFinalSendRef.current && !sentRef.current) {
-            pendingFinalSendRef.current = false
-            sentRef.current = true
-            const events = [...localEventsRef.current]
-            localEventsRef.current = []
-            void sendSessionPayload({ trackId, events })
-        }
-    }, [currentMs, durationMs, gateIntervalMs, getSegmentForMs, trackId])
-    // removed: replay flow
+        setNote('')
+    }, [currentMs, durationMs, note])
 
-    // no-op
+    const handleAddNote = useCallback(() => {
+        const text = (note || '').trim()
+        if (!text) return
+        const t = Math.max(0, Math.min(durationMs || 0, currentMs))
+        localEventsRef.current.push({ type: 'COMMENT', payload: { t, text } })
+        setNote('')
+    }, [note, currentMs, durationMs])
+
+    // UI
 
     return (
-        <div className="min-h-screen w-full flex items-center justify-center">
-            <div className="space-y-3 w-full max-w-[560px] px-4">
-                {/* Reaction overlay: blur background and focus the prompt */}
-                {(nudgeVisible || gateActive) && (
-                    <div className="fixed inset-0 z-50 bg-background/60 backdrop-blur-sm" role="dialog" aria-modal="true">
-                        <div className="absolute inset-0 grid place-items-center p-4">
-                            <div className="w-full max-w-md rounded-md border bg-background p-4 shadow-lg">
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                    <p className="text-xs text-muted-foreground">Share a quick reaction</p>
-                                    <div className="flex w-full gap-2 sm:w-auto">    
-                                        <button
-                                            className="flex-1 rounded-md border px-3 py-2 text-base sm:flex-none cursor-pointer hover:bg-accent"
-                                            onClick={() => handleReaction(-1)}
-                                            aria-label="Dislike"
-                                            title="Dislike"
-                                        >👎</button>
-                                        <button
-                                            className="flex-1 rounded-md border px-3 py-2 text-base sm:flex-none cursor-pointer hover:bg-accent"
-                                            onClick={() => handleReaction(0)}
-                                            aria-label="Neutral"
-                                            title="Neutral"
-                                        >😐</button>
-                                        <button
-                                            className="flex-1 rounded-md border px-3 py-2 text-base sm:flex-none cursor-pointer hover:bg-accent"
-                                            onClick={() => handleReaction(2)}
-                                            aria-label="Super like"
-                                            title="Super like"
-                                        >🔥</button>
-                                        <button
-                                            className="flex-1 rounded-md border px-3 py-2 text-base sm:flex-none cursor-pointer hover:bg-accent"
-                                            onClick={() => handleReaction(1)}
-                                            aria-label="Like"
-                                            title="Like"
-                                        >👍</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+        <>
+            {/* Fixed, transparent background layer */}
+            <div className="pointer-events-none fixed inset-0 -z-10">
+                <WavyBackground
+                    backgroundFill="transparent"
+                    colors={["#38bdf8", "#818cf8", "#c084fc", "#e879f9"]}
+                    waveWidth={50}
+                    blur={10}
+                    speed="fast"
+                    waveOpacity={0.35}
+                    containerClassName="w-full h-full"
+                />
+            </div>
+
+            <div className="min-h-screen w-full flex items-center justify-center">
+                <div className="space-y-3 w-full max-w-[560px] px-4">
+                    <div className="rounded p-4 text-center">
+                        <AudioPlayer
+                            ref={audioRef}
+                            src={src}
+                            currentMs={currentMs}
+                            durationMs={durationMs}
+                            isPlaying={isPlaying}
+                            onTogglePlay={() => setIsPlaying((p) => !p)}
+                            // Log user-initiated seeks; ignore one programmatic seek echo
+                            onSeekToMs={useCallback((ms: number) => {
+                                const nextMs = clamp(ms, 0, durationMs || 0)
+                                if (ignoreNextSeekRef.current) {
+                                    ignoreNextSeekRef.current = false
+                                    setCurrentMs(nextMs)
+                                    return
+                                }
+                                const fromMs = currentMs
+                                setCurrentMs(nextMs)
+                                localEventsRef.current.push({ type: 'SEEK', payload: { fromMs, toMs: nextMs } })
+                            }, [currentMs, durationMs])}
+                            onTimeUpdate={(ms) => setCurrentMs(ms)}
+                            onReady={(durMs) => setDurationMs(durMs)}
+                            onPlayingChange={(playing) => setIsPlaying(playing)}
+                            onEnded={async () => {
+                                if (sentRef.current) return
+                                sentRef.current = true
+                                const events = [...localEventsRef.current]
+                                localEventsRef.current = []
+                                await sendSessionPayload({ trackId, events })
+                            }}
+                        />
+                        {/* No hidden audio element */}
                     </div>
-                )}
-                <div className="rounded p-4 text-center">
-                    <AudioPlayer
-                        src={src}
-                        currentMs={currentMs}
-                        durationMs={durationMs}
-                        disabledControls={nudgeVisible || gateActive}
-                        stepMs={gateIntervalMs}
-                        isPlaying={isPlaying}
-                        onTogglePlay={async () => {
-                            const el = mainRef.current; if (!el) return;
-                            // Prevent resuming playback while gating is active
-                            if (el.paused && (gateActive || nudgeVisible)) {
-                                setNudgeVisible(true); setGateActive(true); return;
-                            }
-                            if (el.paused) { try { await el.play() } catch { } } else { el.pause() }
-                        }}
-                    />
-                    {/* Hidden player */}
-                    <audio ref={mainRef} src={src} className="hidden" />
                 </div>
             </div>
-        </div>
+            {/* Bottom input bar: full-width with reactions (left) and send (right) */}
+            <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                <div className="px-4 py-3">
+                    <div className="mb-2 flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="icon-sm"
+                            className={`rounded-full ${pressedReaction === -1 ? 'bg-red-100 border-red-300 dark:bg-red-900/40 dark:border-red-700' : ''}`}
+                            onClick={() => { flashReaction(-1); handleReaction(-1) }}
+                            aria-label="Dislike"
+                            aria-pressed={pressedReaction === -1}
+                        >
+                            <ThumbsDown className={`h-4 w-4 transition-transform duration-200 ease-out will-change-transform ${pressedReaction === -1 ? 'scale-125 -translate-y-0.5' : 'scale-100'}`} />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="icon-sm"
+                            className={`rounded-full ${pressedReaction === 0 ? 'bg-zinc-100 border-zinc-300 dark:bg-zinc-800/60 dark:border-zinc-700' : ''}`}
+                            onClick={() => { flashReaction(0); handleReaction(0) }}
+                            aria-label="Neutral"
+                            aria-pressed={pressedReaction === 0}
+                        >
+                            <Meh className={`h-4 w-4 transition-transform duration-200 ease-out will-change-transform ${pressedReaction === 0 ? 'scale-125 -translate-y-0.5' : 'scale-100'}`} />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="icon-sm"
+                            className={`rounded-full ${pressedReaction === 2 ? 'bg-orange-100 border-orange-300 dark:bg-orange-900/40 dark:border-orange-700' : ''}`}
+                            onClick={() => { flashReaction(2); handleReaction(2) }}
+                            aria-label="Super like"
+                            aria-pressed={pressedReaction === 2}
+                        >
+                            <Flame className={`h-4 w-4 transition-transform duration-200 ease-out will-change-transform ${pressedReaction === 2 ? 'scale-125 -translate-y-0.5' : 'scale-100'}`} />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="icon-sm"
+                            className={`rounded-full ${pressedReaction === 1 ? 'bg-green-100 border-green-300 dark:bg-green-900/40 dark:border-green-700' : ''}`}
+                            onClick={() => { flashReaction(1); handleReaction(1) }}
+                            aria-label="Like"
+                            aria-pressed={pressedReaction === 1}
+                        >
+                            <ThumbsUp className={`h-4 w-4 transition-transform duration-200 ease-out will-change-transform ${pressedReaction === 1 ? 'scale-125 -translate-y-0.5' : 'scale-100'}`} />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="icon-sm"
+                            className={`rounded-full ${pressedReaction === 3 ? 'bg-rose-100 border-rose-300 dark:bg-rose-900/40 dark:border-rose-700' : ''}`}
+                            onClick={() => { flashReaction(3); handleReaction(3) }}
+                            aria-label="Love"
+                            aria-pressed={pressedReaction === 3}
+                        >
+                            <Heart className={`h-4 w-4 transition-transform duration-200 ease-out will-change-transform ${pressedReaction === 3 ? 'scale-125 -translate-y-0.5' : 'scale-100'}`} />
+                        </Button>
+                    </div>
+                    <div className="relative">
+                        <textarea
+                            id="note"
+                            ref={noteRef}
+                            value={note}
+                            onChange={(e) => { setNote(e.currentTarget.value); autoResize(e.currentTarget) }}
+                            onInput={(e) => autoResize(e.currentTarget as HTMLTextAreaElement)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddNote() } }}
+                            placeholder="Add a short note (optional)"
+                            aria-label="Optional note"
+                            rows={1}
+                            className="font-mono w-full min-h-12 max-h-40 rounded-2xl pl-4 pr-14 py-3 resize-none bg-background border-0 focus:border-0 outline-none focus:outline-none focus:ring-0 focus-visible:ring-0"
+                        />
+                        <Button
+                            variant="default"
+                            size="icon"
+                            className="absolute right-2 bottom-2 rounded-full"
+                            onClick={handleAddNote}
+                            aria-label="Send note"
+                        >
+                            <ArrowUp className="h-4 w-4" />
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </>
     )
 }
 // end of file
