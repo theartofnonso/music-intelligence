@@ -41,6 +41,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     const sentRef = useRef(false)
     const [isPlaying, setIsPlaying] = useState(false)
     const audioRef = useRef<AudioPlayerHandle | null>(null)
+    const ignoreNextSeekRef = useRef(false)
 
     const [note, setNote] = useState<string>('')
     // removed unused seekStepMs
@@ -66,7 +67,10 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         const fromMs = currentMs
         const clamped = clamp(toMs, 0, durationMs)
         // Command the underlying wavesurfer to seek, source of truth
-        try { audioRef.current?.seekToMs(clamped) } catch { }
+        try {
+            ignoreNextSeekRef.current = true
+            audioRef.current?.seekToMs(clamped)
+        } catch { }
         // Local state will be kept in sync via onTimeUpdate/onSeek events
         localEventsRef.current.push({ type: 'SEEK', payload: { fromMs, toMs: clamped } })
     }, [durationMs, currentMs])
@@ -138,8 +142,18 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                             durationMs={durationMs}
                             isPlaying={isPlaying}
                             onTogglePlay={() => setIsPlaying((p) => !p)}
-                            // Internal wavesurfer seek -> reflect in local state only
-                            onSeekToMs={useCallback((ms: number) => { setCurrentMs(ms) }, [])}
+                            // Log user-initiated seeks; ignore one programmatic seek echo
+                            onSeekToMs={useCallback((ms: number) => {
+                                const nextMs = clamp(ms, 0, durationMs || 0)
+                                if (ignoreNextSeekRef.current) {
+                                    ignoreNextSeekRef.current = false
+                                    setCurrentMs(nextMs)
+                                    return
+                                }
+                                const fromMs = currentMs
+                                setCurrentMs(nextMs)
+                                localEventsRef.current.push({ type: 'SEEK', payload: { fromMs, toMs: nextMs } })
+                            }, [currentMs, durationMs])}
                             onTimeUpdate={(ms) => setCurrentMs(ms)}
                             onReady={(durMs) => setDurationMs(durMs)}
                             onPlayingChange={(playing) => setIsPlaying(playing)}
