@@ -5,18 +5,11 @@ import { Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button"
 import { useWavesurfer } from "@wavesurfer/react"
 
-export default function AudioPlayer({
-  src,
-  currentMs = 0,
-  durationMs = 0,
-  isPlaying = false,
-  onTogglePlay,
-  onSeekToMs,
-  onTimeUpdate,
-  onReady,
-  onEnded,
-  onPlayingChange,
-}: {
+export type AudioPlayerHandle = {
+  seekToMs: (ms: number) => void
+}
+
+const AudioPlayer = React.forwardRef<AudioPlayerHandle, {
   src?: string;
   currentMs?: number;
   durationMs?: number;
@@ -27,7 +20,21 @@ export default function AudioPlayer({
   onReady?: (durationMs: number) => void;
   onEnded?: () => void;
   onPlayingChange?: (playing: boolean) => void;
-}) {
+}>(function AudioPlayer(
+  {
+    src,
+    currentMs = 0,
+    durationMs = 0,
+    isPlaying = false,
+    onTogglePlay,
+    onSeekToMs,
+    onTimeUpdate,
+    onReady,
+    onEnded,
+    onPlayingChange,
+  },
+  ref
+) {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   // Keep stable refs to callback props to avoid re-binding WS listeners
   const onSeekToMsRef = React.useRef<((ms: number) => void) | undefined>(onSeekToMs)
@@ -56,7 +63,29 @@ export default function AudioPlayer({
     un?: (event: string, cb: (...args: unknown[]) => void) => void
     play?: () => void
     pause?: () => void
+    setTime?: (seconds: number) => void
+    seekTo?: (progress: number) => void
   }
+
+  // Imperative external seek API
+  React.useImperativeHandle(ref, () => ({
+    seekToMs: (ms: number) => {
+      const ws = wavesurfer as WSLike | null
+      if (!ws) return
+      try {
+        const durationSec = Math.max(0, ws.getDuration?.() || 0)
+        const clampedSec = durationSec > 0 ? Math.max(0, Math.min(durationSec, (ms || 0) / 1000)) : 0
+        if (typeof ws.setTime === 'function') {
+          ws.setTime(clampedSec)
+          return
+        }
+        if (typeof ws.seekTo === 'function') {
+          const ratio = durationSec > 0 ? clampedSec / durationSec : 0
+          ws.seekTo(ratio)
+        }
+      } catch { }
+    }
+  }), [wavesurfer])
 
   // Events: bind once per wavesurfer instance, delegate to latest refs
   React.useEffect(() => {
@@ -157,4 +186,6 @@ export default function AudioPlayer({
       {/* Transport controls removed; play/pause is beside waveform */}
     </div>
   );
-}
+})
+
+export default AudioPlayer

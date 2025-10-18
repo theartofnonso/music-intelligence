@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ThumbsUp, ThumbsDown, Flame, Meh, ArrowUp, Heart } from 'lucide-react'
-import AudioPlayer from '@/components/player/AudioPlayer'
+import AudioPlayer, { AudioPlayerHandle } from '@/components/player/AudioPlayer'
 import { sendSessionPayloadAction } from '../actions'
 import { WavyBackground } from '@/components/ui/wavy-background'
 
@@ -40,6 +40,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
     // Single timeline; users can seek freely
     const sentRef = useRef(false)
     const [isPlaying, setIsPlaying] = useState(false)
+    const audioRef = useRef<AudioPlayerHandle | null>(null)
 
     const [note, setNote] = useState<string>('')
     // removed unused seekStepMs
@@ -64,9 +65,11 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
         if (!durationMs) return
         const fromMs = currentMs
         const clamped = clamp(toMs, 0, durationMs)
-        setCurrentMs(clamped)
+        // Command the underlying wavesurfer to seek, source of truth
+        try { audioRef.current?.seekToMs(clamped) } catch { }
+        // Local state will be kept in sync via onTimeUpdate/onSeek events
         localEventsRef.current.push({ type: 'SEEK', payload: { fromMs, toMs: clamped } })
-    }, [currentMs, durationMs])
+    }, [durationMs, currentMs])
 
     // Single-send model: we accumulate locally and send once on ended
     useEffect(() => {
@@ -129,12 +132,14 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                 <div className="space-y-3 w-full max-w-[560px] px-4">
                     <div className="rounded p-4 text-center">
                         <AudioPlayer
+                            ref={audioRef}
                             src={src}
                             currentMs={currentMs}
                             durationMs={durationMs}
                             isPlaying={isPlaying}
                             onTogglePlay={() => setIsPlaying((p) => !p)}
-                            onSeekToMs={useCallback((ms: number) => { seekToMs(ms) }, [seekToMs])}
+                            // Internal wavesurfer seek -> reflect in local state only
+                            onSeekToMs={useCallback((ms: number) => { setCurrentMs(ms) }, [])}
                             onTimeUpdate={(ms) => setCurrentMs(ms)}
                             onReady={(durMs) => setDurationMs(durMs)}
                             onPlayingChange={(playing) => setIsPlaying(playing)}
