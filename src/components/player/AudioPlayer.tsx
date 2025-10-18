@@ -46,49 +46,59 @@ export default function AudioPlayer({
     url: src,
   })
 
+  type WSLike = {
+    getDuration?: () => number
+    on?: (event: string, cb: (...args: unknown[]) => void) => void
+    un?: (event: string, cb: (...args: unknown[]) => void) => void
+    play?: () => void
+    pause?: () => void
+  }
+
   // Events: bind once per wavesurfer instance, delegate to latest refs
   React.useEffect(() => {
-    const ws = wavesurfer as any
+    const ws = wavesurfer as WSLike | null
     if (!ws) return
-    const onSeek = (ratio: number) => {
+    const onSeekHandler = (...args: unknown[]) => {
+      const ratio = typeof args[0] === 'number' ? args[0] : Number(args[0] ?? 0)
       const dur = Math.max(0, Math.round((ws.getDuration?.() || 0) * 1000))
       const ms = Math.max(0, Math.min(dur, Math.round((ratio || 0) * dur)))
       const cb = onSeekToMsRef.current
       if (typeof cb === 'function') cb(ms)
     }
-    const onTime = (t: number) => {
+    const onTimeHandler = (...args: unknown[]) => {
+      const t = typeof args[0] === 'number' ? args[0] : Number(args[0] ?? 0)
       const cb = onTimeUpdateRef.current
       if (typeof cb === 'function') cb(Math.max(0, Math.round((t || 0) * 1000)))
     }
-    const onReadyCb = () => {
+    const onReadyHandler = () => {
       const dur = Math.max(0, Math.round((ws.getDuration?.() || 0) * 1000))
       const cb = onReadyRef.current
       if (typeof cb === 'function') cb(dur)
     }
-    const onFinish = () => {
+    const onFinishHandler = () => {
       const cb = onEndedRef.current
       if (typeof cb === 'function') cb()
     }
     try {
-      ws.on('seek', onSeek)
-      ws.on('timeupdate', onTime)
-      ws.on('ready', onReadyCb)
-      ws.on('finish', onFinish)
-      ws.on('click', () => { try { ws.play?.() } catch { } })
+      ws.on?.('seek', onSeekHandler)
+      ws.on?.('timeupdate', onTimeHandler)
+      ws.on?.('ready', onReadyHandler)
+      ws.on?.('finish', onFinishHandler)
+      ws.on?.('click', () => { try { ws.play?.() } catch { } })
     } catch { }
     return () => {
       try {
-        ws.un('seek', onSeek)
-        ws.un('timeupdate', onTime)
-        ws.un('ready', onReadyCb)
-        ws.un('finish', onFinish)
+        ws.un?.('seek', onSeekHandler)
+        ws.un?.('timeupdate', onTimeHandler)
+        ws.un?.('ready', onReadyHandler)
+        ws.un?.('finish', onFinishHandler)
       } catch { }
     }
   }, [wavesurfer])
 
   // external play/pause
   React.useEffect(() => {
-    const ws = wavesurfer as any
+    const ws = wavesurfer as WSLike | null
     if (!ws) return
     try {
       if (isPlaying) { ws.play?.() } else { ws.pause?.() }
