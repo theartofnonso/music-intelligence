@@ -27,6 +27,16 @@ export default function AudioPlayer({
   onEnded?: () => void;
 }) {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
+  // Keep stable refs to callback props to avoid re-binding WS listeners
+  const onSeekToMsRef = React.useRef<((ms: number) => void) | undefined>(onSeekToMs)
+  const onTimeUpdateRef = React.useRef<((ms: number) => void) | undefined>(onTimeUpdate)
+  const onReadyRef = React.useRef<((durationMs: number) => void) | undefined>(onReady)
+  const onEndedRef = React.useRef<(() => void) | undefined>(onEnded)
+
+  React.useEffect(() => { onSeekToMsRef.current = onSeekToMs }, [onSeekToMs])
+  React.useEffect(() => { onTimeUpdateRef.current = onTimeUpdate }, [onTimeUpdate])
+  React.useEffect(() => { onReadyRef.current = onReady }, [onReady])
+  React.useEffect(() => { onEndedRef.current = onEnded }, [onEnded])
   const { wavesurfer } = useWavesurfer({
     container: containerRef,
     height: 54,
@@ -36,21 +46,29 @@ export default function AudioPlayer({
     url: src,
   })
 
-  // Events
+  // Events: bind once per wavesurfer instance, delegate to latest refs
   React.useEffect(() => {
     const ws = wavesurfer as any
     if (!ws) return
     const onSeek = (ratio: number) => {
       const dur = Math.max(0, Math.round((ws.getDuration?.() || 0) * 1000))
       const ms = Math.max(0, Math.min(dur, Math.round((ratio || 0) * dur)))
-      if (typeof onSeekToMs === 'function') onSeekToMs(ms)
+      const cb = onSeekToMsRef.current
+      if (typeof cb === 'function') cb(ms)
     }
-    const onTime = (t: number) => { if (typeof onTimeUpdate === 'function') onTimeUpdate(Math.max(0, Math.round((t || 0) * 1000))) }
+    const onTime = (t: number) => {
+      const cb = onTimeUpdateRef.current
+      if (typeof cb === 'function') cb(Math.max(0, Math.round((t || 0) * 1000)))
+    }
     const onReadyCb = () => {
       const dur = Math.max(0, Math.round((ws.getDuration?.() || 0) * 1000))
-      if (typeof onReady === 'function') onReady(dur)
+      const cb = onReadyRef.current
+      if (typeof cb === 'function') cb(dur)
     }
-    const onFinish = () => { if (typeof onEnded === 'function') onEnded() }
+    const onFinish = () => {
+      const cb = onEndedRef.current
+      if (typeof cb === 'function') cb()
+    }
     try {
       ws.on('seek', onSeek)
       ws.on('timeupdate', onTime)
@@ -66,7 +84,7 @@ export default function AudioPlayer({
         ws.un('finish', onFinish)
       } catch { }
     }
-  }, [wavesurfer, onSeekToMs, onTimeUpdate, onReady, onEnded])
+  }, [wavesurfer])
 
   // external play/pause
   React.useEffect(() => {
