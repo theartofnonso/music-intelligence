@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { ThumbsUp, ThumbsDown, Flame, Meh, ArrowUp, Heart, Check } from 'lucide-react'
+import { ThumbsUp, ThumbsDown, Flame, Meh, ArrowUp, Heart, Check, AlertTriangle } from 'lucide-react'
 import AudioPlayer from '@/components/player/AudioPlayer'
 import { WavyBackground } from '@/components/ui/wavy-background'
 
@@ -24,13 +24,18 @@ type SeekPayload = {
 }
 type SessionEvent = { type: EventType; payload: ReactionPayload | CommentPayload | SeekPayload }
 
-// Single-send via simple POST after audio ends
-async function sendSessionPayload(args: { trackId: string; events: SessionEvent[] }) {
+// Single-send via simple POST after audio ends; returns success boolean
+async function sendSessionPayload(args: { trackId: string; events: SessionEvent[] }): Promise<boolean> {
     const { trackId, events } = args
-    if (!events || (Array.isArray(events) && events.length === 0)) return
-    const body = JSON.stringify({ trackId, events })
-    const url = '/api/events/batch'
-    await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body })
+    if (!events || (Array.isArray(events) && events.length === 0)) return false
+    try {
+        const body = JSON.stringify({ trackId, events })
+        const url = '/api/events/batch'
+        const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body })
+        return res.ok
+    } catch {
+        return false
+    }
 }
 
 export const ClientSession = ({ trackId, src }: { trackId: string; src: string }) => {
@@ -44,6 +49,7 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
 
     const [isSending, setIsSending] = useState(false)
     const [sendThanks, setSendThanks] = useState(false)
+    const [sendError, setSendError] = useState<string | null>(null)
 
     const [note, setNote] = useState<string>('')
 
@@ -125,17 +131,28 @@ export const ClientSession = ({ trackId, src }: { trackId: string; src: string }
                                 const events = [...localEventsRef.current]
                                 localEventsRef.current = []
                                 setIsSending(true)
-                                await sendSessionPayload({ trackId, events })
-                                setSendThanks(true)
+                                setSendThanks(false)
+                                setSendError(null)
+                                const ok = await sendSessionPayload({ trackId, events })
+                                if (ok) {
+                                    setSendThanks(true)
+                                } else {
+                                    setSendError('Failed to save your reaction. Please try again.')
+                                }
                             }}
                         />
                     </div>
                 </div>
             </div>
             {isSending && (
-                <div className="fixed inset-0 z-50 grid place-items-center bg-background/70 backdrop-blur-sm" role="status" aria-busy={!sendThanks}>
+                <div className="fixed inset-0 z-50 grid place-items-center bg-background/70 backdrop-blur-sm" role="status" aria-busy={!sendThanks && !sendError}>
                     <div className="flex items-center gap-3 rounded-xl bg-foreground/90 px-4 py-3 text-background shadow-lg">
-                        {sendThanks ? (
+                        {sendError ? (
+                            <>
+                                <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+                                <span className="text-sm font-medium" aria-live="polite">{sendError}</span>
+                            </>
+                        ) : sendThanks ? (
                             <>
                                 <Check className="h-4 w-4" aria-hidden="true" />
                                 <span className="text-sm font-medium" aria-live="polite">Thanks for listening and sharing your reaction.</span>

@@ -17,10 +17,12 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
 
     const payload = (body ?? {}) as { trackId?: string; events?: unknown[] }
-    const trackId = typeof payload.trackId === 'string' ? payload.trackId : ''
+    const rawTrackId = typeof payload.trackId === 'string' ? payload.trackId.trim() : ''
+    const isUuid = (s: string) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(s)
+    const trackId = isUuid(rawTrackId) ? rawTrackId : ''
     const events = Array.isArray(payload.events) ? payload.events : []
     if (!trackId || events.length === 0) {
-      return new Response(JSON.stringify({ ok: false, error: 'invalid_input' }), { status: 400 })
+      return new Response(JSON.stringify({ ok: false, error: !trackId ? 'invalid_track_id' : 'invalid_events' }), { status: 400 })
     }
 
     const supabase = createSecretClient()
